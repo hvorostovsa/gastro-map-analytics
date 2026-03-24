@@ -1,0 +1,25 @@
+services:
+  backend:
+    image: gastro-map-analytics/backend:latest
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    depends_on:
+      - db
+
+  frontend:
+    image: gastro-map-analytics/frontend:latest
+
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    env_file:
+      - .env.example
+
+
+volumes:
+  pgdata:

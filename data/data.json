@@ -1,0 +1,12 @@
+[
+  {
+    "name": "KFC",
+    "description": "Fast Food",
+    "rating": 4.1
+  },
+  {
+    "name": "Sushi Place",
+    "description": "Japanese",
+    "rating": 4.7
+  }
+]
