@@ -21,9 +21,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
-    env_file:
-      - /home/semen/gastro-prod/gastro-map-analytics/infr/.env # костыль пока хз что с ним сделать
-
+      - ../sql/init.sql:/docker-entrypoint-initdb.d/init.sql
 
 volumes:
   pgdata:

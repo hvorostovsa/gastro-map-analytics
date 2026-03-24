@@ -20,5 +20,10 @@ jobs:
       - name: pull & restart prod
         working-directory: ./infr
         run: |
-          docker compose -f docker-compose.prod.yaml pull
-          docker compose -f docker-compose.prod.yaml up -d
+          docker compose \
+            --env-file /opt/gastro-env/.env \
+            -f docker-compose.prod.yaml pull
+          
+          docker compose \
+            --env-file /opt/gastro-env/.env \
+            -f docker-compose.prod.yaml up -d
