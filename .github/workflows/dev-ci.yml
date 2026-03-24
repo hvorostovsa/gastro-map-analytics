@@ -4,9 +4,6 @@ on:
   push:
     branches-ignore:
       - main
-  pull_request:
-    branches-ignore:
-      - main
 
 jobs:
   build:
@@ -36,7 +33,7 @@ jobs:
         run: |
           docker build -t backend-dev .
 
-      - name: Build frontend Docker image
+      - name: build frontend Docker image
         working-directory: frontend
         run: |
           docker build -t frontend-dev .
