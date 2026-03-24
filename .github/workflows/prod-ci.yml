@@ -20,14 +20,10 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: build backend
-        working-directory: backend
-        run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/gastro-map-analytics-backend:latest .
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/gastro-map-analytics-backend:latest ./backend
 
       - name: build frontend
-        working-directory: frontend
-        run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/gastro-map-analytics-frontend:latest .
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/gastro-map-analytics-frontend:latest ./frontend
 
       - name: push images
         run: |
