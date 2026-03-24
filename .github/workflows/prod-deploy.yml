@@ -8,6 +8,14 @@ jobs:
     runs-on: self-hosted
 
     steps:
+      - name: check CI status
+        run: |
+          STATUS=$(gh run list --workflow "Build & Push Prod Images" --branch main --limit 1 --json conclusion -q '.[0].conclusion')
+          if [ "$STATUS" != "success" ]; then
+            echo "CI failed or not finished. Deployment blocked."
+            exit 1
+          fi      
+
       - name: checkout
         uses: actions/checkout@v4
 

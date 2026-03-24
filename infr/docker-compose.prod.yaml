@@ -5,9 +5,13 @@ services:
       - DATABASE_URL=${DATABASE_URL}
     depends_on:
       - db
+    ports:
+      - "8000:8000"
 
   frontend:
     image: hvorostovsa/gastro-map-analytics-frontend:latest
+    ports:
+      - "80:80"
 
   db:
     image: postgres:15
@@ -18,7 +22,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     env_file:
-      - .env.example
+      - .env
 
 
 volumes:

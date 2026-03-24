@@ -38,6 +38,9 @@ jobs:
         run: |
           docker build -t frontend-dev .
 
+      - name: debug username
+        run: echo "USER='${{ secrets.DOCKERHUB_USERNAME }}'"
+
       - name: validate docker-compose.dev.yaml
         working-directory: infr
         run: |
