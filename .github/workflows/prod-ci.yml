@@ -1,0 +1,35 @@
+name: Build & Push Prod Images
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: build backend
+        working-directory: backend
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/gastro-map-analytics-backend:latest .
+
+      - name: build frontend
+        working-directory: frontend
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/gastro-map-analytics-frontend:latest .
+
+      - name: push images
+        run: |
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/gastro-map-analytics-backend:latest
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/gastro-map-analytics-frontend:latest

@@ -1,13 +1,13 @@
 services:
   backend:
-    image: gastro-map-analytics/backend:latest
+    image: hvorostovsa/gastro-map-analytics-backend:latest
     environment:
       - DATABASE_URL=${DATABASE_URL}
     depends_on:
       - db
 
   frontend:
-    image: gastro-map-analytics/frontend:latest
+    image: hvorostovsa/gastro-map-analytics-frontend:latest
 
   db:
     image: postgres:15
