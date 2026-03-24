@@ -1,3 +1,1 @@
 # README
-
-## Gastro Map Analytics
