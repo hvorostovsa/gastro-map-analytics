@@ -22,7 +22,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     env_file:
-      - .env
+      - home/semen/gastro-prod/gastro-map-analytics/infr # костыль пока хз что с ним сделать
 
 
 volumes:
