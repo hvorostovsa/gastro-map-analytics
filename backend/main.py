@@ -3,9 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from db import execute_query
 
 from geo_density_analysis import router as geo_router
+from review_analytics import router as analytics_router
 
 app = FastAPI()
 app.include_router(geo_router)
+app.include_router(analytics_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # for dev only
