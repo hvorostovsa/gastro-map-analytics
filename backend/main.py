@@ -1,7 +1,18 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, APIRouter
+from fastapi.middleware.cors import CORSMiddleware
 from db import execute_query
 
+from geo_density_analysis import router as geo_router
+
 app = FastAPI()
+app.include_router(geo_router)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # for dev only
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def read_root():
