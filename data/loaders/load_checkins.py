@@ -83,7 +83,6 @@ def load_checkins(path):
                     batch_count += 1
                     buffer.clear()
 
-                    # 🔥 редкий лог
                     if batch_count % LOG_EVERY == 0:
                         percent = (inserted / total_valid) * 100 if total_valid else 0
 
