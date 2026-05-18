@@ -33,7 +33,7 @@ services:
       - DATABASE_URL=postgresql://user:password@db:5432/db-big-data
     volumes:
       - ../data:/data
-    command: ["python", "-u", "../data/main.py", "--all, "--path", "/data"]
+    command: ["python", "-u", "../data/main.py", "--all", "--path", "/data"]
 
 volumes:
   pgdata:
