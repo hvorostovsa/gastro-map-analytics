@@ -75,7 +75,6 @@ def _fetch_capped_reviews(
                 b.state,
                 ROW_NUMBER() OVER (
                     PARTITION BY r.business_id
-                    ORDER BY r.review_date DESC NULLS LAST, r.review_id
                 ) AS rn
             FROM reviews r
             JOIN businesses b ON b.business_id = r.business_id
@@ -99,25 +98,22 @@ def _pick_business_ids(
     limit_businesses: int,
     min_reviews: int,
 ) -> list[str]:
-    where_sql = "WHERE b.city = %s" if city else ""
-    params: list[object] = []
+    where: list[str] = ["COALESCE(review_count, 0) >= %s"]
+    params: list[object] = [min_reviews]
     if city:
+        where.append("city = %s")
         params.append(city)
-    params.extend([min_reviews, limit_businesses])
+    where_sql = "WHERE " + " AND ".join(where)
 
     rows = execute_query(
         f"""
-        SELECT r.business_id
-        FROM reviews r
-        JOIN businesses b ON b.business_id = r.business_id
+        SELECT business_id
+        FROM businesses
         {where_sql}
-        GROUP BY r.business_id
-        HAVING COUNT(*) >= %s
-        ORDER BY COUNT(*) DESC, r.business_id
         LIMIT %s
         """,
         fetch=True,
-        params=tuple(params),
+        params=tuple(params + [limit_businesses]),
     )
 
     return [cast(str, r[0]) for r in (rows or [])]
@@ -142,9 +138,21 @@ def _compute_business_metrics_live(
     max_reviews_per_business: int = 300,
     max_total_reviews: int = 300000,
 ) -> list[Mapping[str, Any]]:
+    candidate_ids: list[str] | None
+    if business_id:
+        candidate_ids = [business_id]
+    else:
+        candidate_ids = _pick_business_ids(
+            city=city,
+            limit_businesses=limit_businesses,
+            min_reviews=min_reviews,
+        )
+        if not candidate_ids:
+            return []
+
     rows = _fetch_capped_reviews(
-        business_ids=[business_id] if business_id else None,
-        city=city,
+        business_ids=candidate_ids,
+        city=None,
         max_reviews_per_business=max_reviews_per_business,
         max_total_reviews=max_total_reviews,
     )
@@ -234,6 +242,12 @@ def business_metrics(
 ):
     """Return per-business aggregates needed for plots and correlation."""
 
+    if min_reviews > max_reviews_per_business:
+        raise HTTPException(
+            status_code=400,
+            detail="min_reviews cannot be greater than max_reviews_per_business (otherwise no business can pass the filter)",
+        )
+
     items = _compute_business_metrics_live(
         city=city,
         min_reviews=min_reviews,
@@ -300,6 +314,12 @@ def correlation(
     max_reviews_per_business: int = Query(default=300, ge=1, le=5000, description="live-mode cap"),
     max_total_reviews: int = Query(default=300000, ge=1, le=2000000, description="live-mode cap"),
 ):
+    if min_reviews > max_reviews_per_business:
+        raise HTTPException(
+            status_code=400,
+            detail="min_reviews cannot be greater than max_reviews_per_business (otherwise no business can pass the filter)",
+        )
+
     if x in {"review_count", "reviews_per_month"} or y in {"review_count", "reviews_per_month"}:
         raise HTTPException(
             status_code=400,
