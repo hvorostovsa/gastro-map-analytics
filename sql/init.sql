@@ -73,3 +73,9 @@ ON checkins(business_id);
 
 CREATE INDEX idx_checkins_time
 ON checkins(checkin_time);
+
+CREATE INDEX IF NOT EXISTS idx_businesses_city_business
+ON businesses (city, business_id);
+
+CREATE INDEX IF NOT EXISTS idx_reviews_business_date_id
+ON reviews (business_id, review_date DESC, review_id);
