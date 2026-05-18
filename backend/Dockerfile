@@ -11,4 +11,4 @@ COPY . .
 # RUN python load_data.py
 
 # пока fastapi в теории можно перейти на что угодно
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--log-level", "debug"]

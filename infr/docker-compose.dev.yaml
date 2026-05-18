@@ -4,11 +4,15 @@ services:
     container_name: backend
     depends_on:
       - db
+
+    volumes:
+      - ../backend:/app
+
     environment:
       - DATABASE_URL=postgresql://user:password@db:5432/db-big-data
+
     ports:
       - "8000:8000"
-
   db:
     image: postgis/postgis:15-3.4
     container_name: db
@@ -33,7 +37,7 @@ services:
       - DATABASE_URL=postgresql://user:password@db:5432/db-big-data
     volumes:
       - ../data:/data
-    command: ["python", "-u", "../data/main.py", "--all", "--path", "/data"]
+    command: ["python", "-u", "../data/main.py", "--business", "--path", "/data"]
 
 volumes:
   pgdata:
