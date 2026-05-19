@@ -10,6 +10,7 @@
             margin: 0;
             font-family: "Segoe UI", sans-serif;
             color: #1e293b;
+            background: #f8fafc;
         }
 
         .layout {
@@ -28,14 +29,16 @@
             border-left: 1px solid #e2e8f0;
             padding: 16px;
             overflow-y: auto;
+            box-shadow: 0 0 20px rgba(15, 23, 42, 0.06);
         }
 
         .card {
-            background: #f8fafc;
+            background: #ffffff;
             border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 12px;
-            margin-bottom: 12px;
+            border-radius: 16px;
+            padding: 14px;
+            margin-bottom: 14px;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
         }
 
         .tabs {
@@ -47,17 +50,19 @@
 
         .tab {
             border: 1px solid #cbd5f5;
-            background: #f8fafc;
+            background: #f1f5f9;
             padding: 6px 10px;
             border-radius: 999px;
             font-size: 13px;
             cursor: pointer;
+            transition: all 0.2s ease;
         }
 
         .tab.active {
-            background: #2563eb;
+            background: linear-gradient(135deg, #2563eb, #38bdf8);
             color: #ffffff;
             border-color: #2563eb;
+            box-shadow: 0 8px 16px rgba(37, 99, 235, 0.3);
         }
 
         .card h3 {
@@ -69,6 +74,7 @@
             display: block;
             font-size: 14px;
             margin-bottom: 6px;
+            color: #1f2937;
         }
 
         select {
@@ -76,6 +82,7 @@
             padding: 8px;
             border-radius: 8px;
             border: 1px solid #cbd5f5;
+            background: #f8fafc;
         }
 
         input {
@@ -83,16 +90,30 @@
             padding: 8px;
             border-radius: 8px;
             border: 1px solid #cbd5f5;
+            background: #f8fafc;
+        }
+
+        input[type="checkbox"] {
+            width: auto;
+            padding: 0;
+            margin: 0;
         }
 
         button.primary {
-            background: #2563eb;
+            background: linear-gradient(135deg, #2563eb, #4f46e5);
             color: #ffffff;
             border: none;
             border-radius: 8px;
             padding: 8px 12px;
             font-size: 14px;
             cursor: pointer;
+            box-shadow: 0 10px 20px rgba(37, 99, 235, 0.35);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        button.primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(37, 99, 235, 0.4);
         }
 
         .grid-2 {
@@ -103,7 +124,7 @@
 
         .status {
             font-size: 12px;
-            color: #1e293b;
+            color: #0f172a;
             margin-top: 6px;
         }
 
@@ -115,9 +136,85 @@
             font-size: 14px;
         }
 
+        .toggle label {
+            margin: 0;
+            display: inline;
+        }
+
         .sidebar canvas {
             width: 100% !important;
             height: 260px !important;
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 8px;
+        }
+
+        .chart-card {
+            position: relative;
+        }
+
+        .chart-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .chart-actions button {
+            background: #0f172a;
+            color: #ffffff;
+            border: none;
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .layout.cuisine-fullscreen #map {
+            display: none;
+        }
+
+        .layout.cuisine-fullscreen .sidebar {
+            width: 100%;
+        }
+
+        .layout.cuisine-fullscreen #cuisinePanel .sidebar-chart {
+            height: 420px !important;
+        }
+
+        .report-card {
+            margin-top: 10px;
+            padding: 12px;
+            background: #f1f5f9;
+            border-radius: 12px;
+            border: 1px solid #cbd5f5;
+        }
+
+
+        .report-card.hidden {
+            display: none;
+        }
+
+        .layout.show-charts #map {
+            display: none;
+        }
+
+        .layout.show-charts .sidebar {
+            width: 100%;
+            border-left: none;
+        }
+
+        .layout.show-charts .sidebar canvas {
+            height: 360px !important;
+        }
+
+        .chart-placeholder {
+            padding: 16px;
+            text-align: center;
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 1px dashed #cbd5f5;
+            color: #64748b;
         }
 
         .panel {
@@ -142,7 +239,8 @@
         <div class="tabs">
             <button class="tab active" data-panel="densityPanel">Плотность</button>
             <button class="tab" data-panel="cuisinePanel">Кухни</button>
-            <button class="tab" data-panel="reviewsPanel">Отзывы</button>
+            <button class="tab" data-panel="reviewsMapPanel">Отзывы (карта)</button>
+            <button class="tab" data-panel="reviewsChartsPanel">Отзывы (графики)</button>
             <button class="tab" data-panel="forecastPanel">Прогноз</button>
             <button class="tab" data-panel="marketPanel">Рынок</button>
         </div>
@@ -165,23 +263,90 @@
                 <select id="cuisineSelect"></select>
                 <div class="toggle">
                     <input type="checkbox" id="showMarkers" checked />
-                    <label for="showMarkers">Маркерные рестораны</label>
+                    <label for="showMarkers">Показывать рестораны</label>
                 </div>
                 <p class="hint">Кухни берутся из топ-20 по числу заведений. Клик по графику меняет кухню.</p>
             </div>
 
-            <div class="card">
-                <h3>Доля кухонь (donut)</h3>
-                <canvas id="donutChart"></canvas>
+            <div class="card chart-card">
+                <div class="chart-actions">
+                    <h3>Доля кухонь (donut)</h3>
+                    <button id="toggleCuisineFullscreen">Развернуть</button>
+                </div>
+                <canvas id="donutChart" class="sidebar-chart"></canvas>
             </div>
 
-            <div class="card">
-                <h3>Топ кухонь (bar)</h3>
-                <canvas id="barChart"></canvas>
+            <div class="card chart-card">
+                <div class="chart-actions">
+                    <h3>Топ кухонь (bar)</h3>
+                </div>
+                <canvas id="barChart" class="sidebar-chart"></canvas>
             </div>
         </section>
 
-        <section class="panel" id="reviewsPanel">
+        <section class="panel" id="reviewsMapPanel">
+            <div class="card">
+                <h3>Отзывы: карта метрик</h3>
+                <div class="toggle">
+                    <input type="checkbox" id="showReviewMarkers" checked />
+                    <label for="showReviewMarkers">Показывать метрики на карте</label>
+                </div>
+                <div class="toggle">
+                    <input type="checkbox" id="showReviewBase" checked />
+                    <label for="showReviewBase">Показывать рестораны</label>
+                </div>
+                <div class="toggle">
+                    <input type="checkbox" id="showReviewTopN" checked />
+                    <label for="showReviewTopN">Показывать top N</label>
+                </div>
+                <div class="grid-2">
+                    <div>
+                        <label for="reviewsHighlightMetric">Выделять по метрике</label>
+                        <select id="reviewsHighlightMetric">
+                            <option value="avg_sentiment" selected>avg_sentiment</option>
+                            <option value="avg_stars">avg_stars</option>
+                            <option value="avg_review_length">avg_review_length</option>
+                            <option value="reviews_per_month">reviews_per_month</option>
+                            <option value="review_count">review_count</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="reviewsTopN">Top N</label>
+                        <input id="reviewsTopN" type="number" value="10" min="3" max="100" />
+                    </div>
+                </div>
+                <div style="display:flex; align-items:flex-end;">
+                    <button class="primary" id="refreshReviewsMapBtn">Обновить карту</button>
+                </div>
+                <p class="hint">Точки строятся по метрикам после нажатия «Посчитать метрики» (вкладка графиков).</p>
+            </div>
+
+            <div class="card">
+                <h3>Легенда</h3>
+                <p class="hint">Серые точки — рестораны, красные — top N по метрике, синие — остальные.</p>
+            </div>
+
+            <div class="card" id="reviewsBusinessCard">
+                <h3>Выбранный бизнес</h3>
+                <div class="hint" id="reviewsBusinessName">Кликни по точке, чтобы выбрать бизнес.</div>
+                <div class="status" id="reviewsBusinessStatus">Статус корреляции появится здесь.</div>
+                <div style="margin-top: 8px;">
+                    <label for="corrBusinessId">Business ID (опц.)</label>
+                    <input id="corrBusinessId" placeholder="_ab50qdWOk0DdB6XOrBitw" />
+                </div>
+                <div style="margin-top: 8px; display:flex; gap:8px;">
+                    <button class="primary" id="mapCorrelationBtn">Корреляция</button>
+                    <button class="primary" id="mapReportBtn">Показать отчет</button>
+                </div>
+                <div class="report-card hidden" id="mapReportCard">
+                    <h4 style="margin: 0 0 8px;">Отчет по бизнесу</h4>
+                    <div class="chart-placeholder" id="mapReportMessage">Нет данных для корреляции по выбранному бизнесу.</div>
+                    <canvas id="reviewsMapCorrelationChart" class="sidebar-chart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel" id="reviewsChartsPanel">
             <div class="card">
                 <h3>Связь рейтингов и отзывов</h3>
                 <div class="grid-2">
@@ -191,7 +356,7 @@
                     </div>
                     <div>
                         <label for="reviewsLimit">Бизнесы (limit)</label>
-                        <input id="reviewsLimit" type="number" value="300" min="10" max="5000" />
+                        <input id="reviewsLimit" type="number" value="1000" min="10" max="5000" />
                     </div>
                 </div>
                 <div class="grid-2">
@@ -250,7 +415,7 @@
                         </select>
                     </div>
                     <div style="display:flex; align-items:flex-end;">
-                        <button class="primary" id="loadReviewsBtn">Загрузить</button>
+                        <button class="primary" id="loadReviewsBtn">Посчитать метрики</button>
                     </div>
                 </div>
                 <p class="hint">Не завышай max_reviews_per_business / max_total_reviews — анализ может быть очень долгим.</p>
@@ -259,11 +424,13 @@
 
             <div class="card">
                 <h3>Scatter: выбранные метрики</h3>
+                <div class="chart-placeholder" id="scatterPlaceholder">Сначала нажми «Посчитать метрики», чтобы построить график.</div>
                 <canvas id="reviewsScatterChart"></canvas>
             </div>
 
             <div class="card">
                 <h3>Корреляции по бизнесам</h3>
+                <div class="chart-placeholder" id="correlationPlaceholder">Корреляция считается автоматически после метрик.</div>
                 <canvas id="reviewsCorrelationChart"></canvas>
             </div>
         </section>
@@ -302,6 +469,12 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
 const cuisineSelect = document.getElementById('cuisineSelect');
 const showDensity = document.getElementById('showDensity');
 const showMarkers = document.getElementById('showMarkers');
+const showReviewMarkers = document.getElementById('showReviewMarkers');
+const showReviewBase = document.getElementById('showReviewBase');
+const showReviewTopN = document.getElementById('showReviewTopN');
+const reviewsHighlightMetric = document.getElementById('reviewsHighlightMetric');
+const reviewsTopN = document.getElementById('reviewsTopN');
+const refreshReviewsMapBtn = document.getElementById('refreshReviewsMapBtn');
 const reviewsCity = document.getElementById('reviewsCity');
 const reviewsLimit = document.getElementById('reviewsLimit');
 const reviewsMin = document.getElementById('reviewsMin');
@@ -311,16 +484,36 @@ const scatterX = document.getElementById('scatterX');
 const scatterY = document.getElementById('scatterY');
 const corrX = document.getElementById('corrX');
 const corrY = document.getElementById('corrY');
+const corrBusinessId = document.getElementById('corrBusinessId');
 const loadReviewsBtn = document.getElementById('loadReviewsBtn');
+const scatterPlaceholder = document.getElementById('scatterPlaceholder');
+const correlationPlaceholder = document.getElementById('correlationPlaceholder');
 const reviewsStatus = document.getElementById('reviewsStatus');
+const toggleCuisineFullscreen = document.getElementById('toggleCuisineFullscreen');
+const reviewsBusinessName = document.getElementById('reviewsBusinessName');
+const reviewsBusinessStatus = document.getElementById('reviewsBusinessStatus');
+const mapCorrelationBtn = document.getElementById('mapCorrelationBtn');
+const mapReportBtn = document.getElementById('mapReportBtn');
+const mapReportCard = document.getElementById('mapReportCard');
+const mapReportMessage = document.getElementById('mapReportMessage');
 
 let densityLayer = null;
 let markerLayer = null;
+let reviewsMarkerLayer = null;
+let reviewsBaseMarkerLayer = null;
+let reviewsSelectedMarker = null;
+
+let reviewsMetricsCache = [];
+let selectedBusiness = null;
 
 let donutChart = null;
 let barChart = null;
 let reviewsScatterChart = null;
 let reviewsCorrelationChart = null;
+let reviewsMapCorrelationChart = null;
+let reviewsMetricsReady = false;
+let correlationInProgress = false;
+let correlationReady = false;
 
 function debounce(fn, delay) {
     let t;
@@ -379,11 +572,18 @@ function updateCharts(data) {
             labels,
             datasets: [{
                 data: values,
-                backgroundColor: labels.map((_, i) => `hsl(${(i * 30) % 360}, 70%, 60%)`),
-                borderWidth: 1
+                backgroundColor: labels.map((_, i) => `hsla(${(i * 30) % 360}, 80%, 60%, 0.85)`),
+                borderWidth: 2,
+                borderColor: '#ffffff'
             }]
         },
         options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: {
+                duration: 800,
+                easing: 'easeOutQuart'
+            },
             plugins: {
                 legend: { display: false }
             },
@@ -397,13 +597,20 @@ function updateCharts(data) {
             labels,
             datasets: [{
                 data: values,
-                backgroundColor: '#38bdf8'
+                backgroundColor: 'rgba(56, 189, 248, 0.85)',
+                borderRadius: 6
             }]
         },
         options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: {
+                duration: 800,
+                easing: 'easeOutQuart'
+            },
             scales: {
-                x: { ticks: { display: false } },
-                y: { beginAtZero: true }
+                x: { ticks: { display: false }, grid: { display: false } },
+                y: { beginAtZero: true, grid: { color: 'rgba(148, 163, 184, 0.2)' } }
             },
             plugins: {
                 legend: { display: false }
@@ -446,6 +653,23 @@ function buildReviewParams() {
 function setReviewsStatus(message, isError = false) {
     reviewsStatus.textContent = message;
     reviewsStatus.style.color = isError ? "#dc2626" : "#1e293b";
+    if (reviewsBusinessStatus) {
+        reviewsBusinessStatus.textContent = message;
+        reviewsBusinessStatus.style.color = isError ? "#dc2626" : "#1e293b";
+    }
+}
+
+function toggleChartVisibility() {
+    const scatterCanvas = document.getElementById('reviewsScatterChart');
+    const correlationCanvas = document.getElementById('reviewsCorrelationChart');
+    if (scatterCanvas && scatterPlaceholder) {
+        scatterCanvas.style.display = reviewsMetricsReady ? 'block' : 'none';
+        scatterPlaceholder.style.display = reviewsMetricsReady ? 'none' : 'block';
+    }
+    if (correlationCanvas && correlationPlaceholder) {
+        correlationCanvas.style.display = reviewsMetricsReady ? 'block' : 'none';
+        correlationPlaceholder.style.display = reviewsMetricsReady ? 'none' : 'block';
+    }
 }
 
 function renderScatter(items) {
@@ -471,13 +695,22 @@ function renderScatter(items) {
             datasets: [{
                 label: `${xKey} vs ${yKey}`,
                 data: points,
-                backgroundColor: '#38bdf8'
+                backgroundColor: 'rgba(56, 189, 248, 0.85)',
+                borderColor: '#0ea5e9',
+                pointRadius: 4,
+                pointHoverRadius: 7
             }]
         },
         options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: {
+                duration: 800,
+                easing: 'easeOutQuart'
+            },
             scales: {
-                x: { title: { display: true, text: xKey } },
-                y: { title: { display: true, text: yKey } }
+                x: { title: { display: true, text: xKey }, grid: { color: 'rgba(148, 163, 184, 0.2)' } },
+                y: { title: { display: true, text: yKey }, grid: { color: 'rgba(148, 163, 184, 0.2)' } }
             },
             plugins: {
                 legend: { display: false },
@@ -510,13 +743,21 @@ function renderCorrelation(items, xKey, yKey) {
             datasets: [{
                 label: `pearson_r (${xKey} vs ${yKey})`,
                 data: values,
-                backgroundColor: '#f97316'
+                backgroundColor: 'rgba(249, 115, 22, 0.8)',
+                borderColor: '#ea580c',
+                borderWidth: 1
             }]
         },
         options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: {
+                duration: 800,
+                easing: 'easeOutQuart'
+            },
             scales: {
-                x: { ticks: { display: false } },
-                y: { beginAtZero: true, min: 0, max: 1 }
+                x: { ticks: { display: false }, grid: { display: false } },
+                y: { beginAtZero: true, min: 0, max: 1, grid: { color: 'rgba(148, 163, 184, 0.2)' } }
             },
             plugins: {
                 legend: { display: false }
@@ -525,8 +766,321 @@ function renderCorrelation(items, xKey, yKey) {
     });
 }
 
+function renderCorrelationOnMap(items, xKey, yKey) {
+    const labels = items.map(item => item.name || item.business_id);
+    const values = items.map(item => Number(item.pearson_r || 0));
+    const avgValue = values.length ? (values.reduce((sum, val) => sum + val, 0) / values.length) : null;
+
+    const ctx = document.getElementById('reviewsMapCorrelationChart');
+    if (!ctx) {
+        return;
+    }
+
+    if (!items || items.length === 0) {
+        mapReportCard.classList.remove('hidden');
+        if (mapReportMessage) {
+            mapReportMessage.style.display = 'block';
+        }
+        // ensure any previous chart instance is destroyed so old bars don't remain visible
+        if (reviewsMapCorrelationChart) {
+            try {
+                reviewsMapCorrelationChart.destroy();
+            } catch (e) {
+                console.warn('Failed to destroy previous reviewsMapCorrelationChart', e);
+            }
+            reviewsMapCorrelationChart = null;
+        }
+        if (ctx) {
+            ctx.style.display = 'none';
+        }
+        return;
+    }
+
+    if (mapReportMessage) {
+        mapReportMessage.style.display = 'none';
+    }
+    ctx.style.display = 'block';
+
+    if (reviewsMapCorrelationChart) {
+        reviewsMapCorrelationChart.destroy();
+    }
+
+    reviewsMapCorrelationChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: `R ${xKey.toUpperCase()} vs ${yKey.toUpperCase()}`,
+                data: values,
+                backgroundColor: 'rgba(14, 165, 233, 0.8)',
+                borderColor: '#0ea5e9',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: {
+                duration: 800,
+                easing: 'easeOutQuart'
+            },
+            scales: {
+                x: { ticks: { display: false }, grid: { display: false } },
+                y: { beginAtZero: true, min: 0, max: 1, grid: { color: 'rgba(148, 163, 184, 0.2)' } }
+            },
+            plugins: {
+                legend: { display: true, labels: { color: '#0f172a', font: { weight: 'bold', size: 12 } } },
+                title: {
+                    display: avgValue !== null,
+                    text: avgValue !== null ? `R = ${avgValue.toFixed(3)}` : '',
+                    color: '#0f172a',
+                    font: { weight: 'bold', size: 14 }
+                }
+            }
+        }
+    });
+}
+
+function getMetricValue(item, metric) {
+    const value = item[metric];
+    if (value === null || value === undefined) {
+        return null;
+    }
+    return Number(value);
+}
+
+function getMarkerRadius(zoom, isTop) {
+    const base = Math.max(3, 10 - (zoom - 10));
+    const scale = isTop ? 1.8 : 1.0;
+    return Math.max(3, base * scale);
+}
+
+function renderReviewMarkers(items) {
+    if (!showReviewMarkers.checked) {
+        if (reviewsMarkerLayer) {
+            map.removeLayer(reviewsMarkerLayer);
+            reviewsMarkerLayer = null;
+        }
+        return;
+    }
+
+    if (!showReviewTopN.checked) {
+        if (reviewsMarkerLayer) {
+            map.removeLayer(reviewsMarkerLayer);
+            reviewsMarkerLayer = null;
+        }
+        return;
+    }
+
+    const activePanel = document.querySelector('.panel.active');
+    if (activePanel && activePanel.id !== 'reviewsMapPanel') {
+        if (reviewsMarkerLayer) {
+            map.removeLayer(reviewsMarkerLayer);
+            reviewsMarkerLayer = null;
+        }
+        return;
+    }
+
+    const metric = reviewsHighlightMetric.value;
+    const topN = Number(reviewsTopN.value || 10);
+
+    const valid = items.filter(item => item.latitude !== null && item.latitude !== undefined && item.longitude !== null && item.longitude !== undefined);
+    const sorted = [...valid].sort((a, b) => {
+        const av = getMetricValue(a, metric) ?? -Infinity;
+        const bv = getMetricValue(b, metric) ?? -Infinity;
+        return bv - av;
+    });
+    const topIds = new Set(sorted.slice(0, topN).map(item => item.business_id));
+
+    if (reviewsMarkerLayer) {
+        map.removeLayer(reviewsMarkerLayer);
+    }
+
+    reviewsMarkerLayer = L.layerGroup();
+
+    const zoom = map.getZoom();
+    const baseMarkers = [];
+    const topMarkers = [];
+
+    valid.forEach(item => {
+        const isTop = topIds.has(item.business_id);
+        const color = isTop ? '#ef4444' : '#2563eb';
+        const fill = isTop ? '#fca5a5' : '#60a5fa';
+
+        const marker = L.circleMarker([item.latitude, item.longitude], {
+            radius: getMarkerRadius(zoom, isTop),
+            color,
+            fillColor: fill,
+            fillOpacity: 0.9,
+            weight: isTop ? 2 : 1
+        });
+
+        marker.on('click', () => {
+            selectBusiness(item);
+        });
+
+        marker.bindPopup(`
+            <strong>${item.name}</strong><br/>
+            ${item.city || ''} ${item.state || ''}<br/>
+            ⭐ ${item.avg_stars?.toFixed?.(2) ?? item.avg_stars ?? '-'}<br/>
+            sentiment: ${item.avg_sentiment?.toFixed?.(2) ?? item.avg_sentiment ?? '-'}<br/>
+            reviews: ${item.review_count ?? 0}
+        `);
+
+        if (isTop) {
+            topMarkers.push(marker);
+        } else {
+            baseMarkers.push(marker);
+        }
+    });
+
+    baseMarkers.forEach(marker => reviewsMarkerLayer.addLayer(marker));
+    topMarkers.forEach(marker => reviewsMarkerLayer.addLayer(marker));
+
+    reviewsMarkerLayer.addTo(map);
+}
+
+async function loadReviewBaseMarkers() {
+    const activePanel = document.querySelector('.panel.active');
+    if (activePanel && activePanel.id !== 'reviewsMapPanel') {
+        if (reviewsBaseMarkerLayer) {
+            map.removeLayer(reviewsBaseMarkerLayer);
+            reviewsBaseMarkerLayer = null;
+        }
+        return;
+    }
+
+    if (!showReviewBase.checked) {
+        if (reviewsBaseMarkerLayer) {
+            map.removeLayer(reviewsBaseMarkerLayer);
+            reviewsBaseMarkerLayer = null;
+        }
+        return;
+    }
+
+    if (reviewsMetricsCache.length) {
+        if (reviewsBaseMarkerLayer) {
+            map.removeLayer(reviewsBaseMarkerLayer);
+            reviewsBaseMarkerLayer = null;
+        }
+        return;
+    }
+
+    const bbox = getBBox();
+    const url = new URL(`${API_BASE}/api/analytics/cuisines/map`);
+    url.searchParams.set("bbox", bbox);
+    url.searchParams.set("limit", "1000");
+
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (reviewsBaseMarkerLayer) {
+        map.removeLayer(reviewsBaseMarkerLayer);
+    }
+
+    reviewsBaseMarkerLayer = L.layerGroup();
+    data.forEach(item => {
+        if (!item.lat || !item.lon) {
+            return;
+        }
+        const marker = L.circleMarker([item.lat, item.lon], {
+            radius: 4,
+            color: '#64748b',
+            fillColor: '#cbd5f5',
+            fillOpacity: 0.8,
+            weight: 1
+        });
+        marker.on('click', () => {
+            selectBusiness(item);
+        });
+        marker.bindPopup(`
+            <strong>${item.name}</strong><br/>
+            ${item.city || ''} ${item.state || ''}<br/>
+            ⭐ ${item.stars ?? '-'} | 리뷰 ${item.review_count ?? 0}
+        `);
+        reviewsBaseMarkerLayer.addLayer(marker);
+    });
+
+    reviewsBaseMarkerLayer.addTo(map);
+}
+
+function highlightSelectedBusiness(item) {
+    if (reviewsSelectedMarker) {
+        map.removeLayer(reviewsSelectedMarker);
+        reviewsSelectedMarker = null;
+    }
+
+    if (!item || item.latitude === null || item.latitude === undefined || item.longitude === null || item.longitude === undefined) {
+        return;
+    }
+
+    reviewsSelectedMarker = L.circleMarker([item.latitude, item.longitude], {
+        radius: 9,
+        color: '#f59e0b',
+        fillColor: '#fde047',
+        fillOpacity: 0.95,
+        weight: 2
+    });
+    reviewsSelectedMarker.addTo(map);
+}
+
+function selectBusiness(item) {
+    const lat = item.latitude ?? item.lat ?? null;
+    const lon = item.longitude ?? item.lon ?? null;
+    selectedBusiness = {
+        ...item,
+        latitude: lat,
+        longitude: lon
+    };
+    const label = item.name ? `${item.name} (${item.city || ''} ${item.state || ''})` : `Business ID: ${item.business_id || item.businessId}`;
+    reviewsBusinessName.textContent = label.trim();
+    mapReportCard.classList.add('hidden');
+    if (mapReportMessage) {
+        mapReportMessage.style.display = 'block';
+    }
+    if (lat !== null && lat !== undefined && lon !== null && lon !== undefined) {
+        map.setView([lat, lon], Math.max(map.getZoom(), 14));
+        highlightSelectedBusiness({ latitude: lat, longitude: lon });
+    }
+}
+
+async function lookupBusinessById(businessId) {
+    if (!businessId) {
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE}/analytics/business/${businessId}/location`);
+        if (!response.ok) {
+            throw new Error(`business: ${response.status}`);
+        }
+        const data = await response.json();
+        selectBusiness({
+            business_id: data.business_id,
+            name: data.name,
+            city: data.city,
+            state: data.state,
+            latitude: data.latitude,
+            longitude: data.longitude,
+            stars: data.stars,
+            review_count: data.review_count
+        });
+    } catch (err) {
+        setReviewsStatus(`Бизнес не найден (${err.message}).`, true);
+    }
+}
+
+async function updateReviewsMap() {
+    if (!reviewsMetricsCache.length) {
+        await loadReviewBaseMarkers();
+        return;
+    }
+    renderReviewMarkers(reviewsMetricsCache);
+}
+
 async function loadReviewAnalytics() {
-    setReviewsStatus("Загрузка...", false);
+    setReviewsStatus("Загрузка метрик...", false);
+    reviewsMetricsReady = false;
+    toggleChartVisibility();
 
     const params = buildReviewParams();
     const metricsUrl = new URL(`${API_BASE}/analytics/business-metrics`);
@@ -538,34 +1092,95 @@ async function loadReviewAnalytics() {
     correlationUrl.searchParams.set("min_reviews", params.get("min_reviews"));
     correlationUrl.searchParams.set("max_reviews_per_business", params.get("max_reviews_per_business"));
     correlationUrl.searchParams.set("max_total_reviews", params.get("max_total_reviews"));
-    correlationUrl.searchParams.set("limit_businesses", params.get("limit"));
-    const city = params.get("city");
-    if (city) {
-        correlationUrl.searchParams.set("city", city);
+    const businessId = corrBusinessId.value.trim();
+    if (businessId) {
+        correlationUrl.searchParams.set("business_id", businessId);
+    } else {
+        correlationUrl.searchParams.set("limit_businesses", params.get("limit"));
+        const city = params.get("city");
+        if (city) {
+            correlationUrl.searchParams.set("city", city);
+        }
     }
 
-    try {
-        const [metricsResponse, correlationResponse] = await Promise.all([
-            fetch(metricsUrl),
-            fetch(correlationUrl)
-        ]);
+    let metricsItems = [];
 
+    try {
+        const metricsResponse = await fetch(metricsUrl);
         if (!metricsResponse.ok) {
             throw new Error(`business-metrics: ${metricsResponse.status}`);
         }
+
+        const metricsData = await metricsResponse.json();
+        metricsItems = metricsData.items || [];
+        reviewsMetricsCache = metricsItems;
+        reviewsMetricsReady = metricsItems.length > 0;
+        toggleChartVisibility();
+        renderScatter(metricsItems);
+        renderReviewMarkers(metricsItems);
+        setReviewsStatus(`Метрики загружены: ${metricsItems.length} бизнесов. Корреляция считается автоматически.`, false);
+    } catch (err) {
+        setReviewsStatus(`Ошибка метрик: ${err.message}`, true);
+        return;
+    }
+
+    await loadCorrelationOnly(false);
+}
+
+async function loadCorrelationOnly(isSingleBusiness) {
+    if (!reviewsMetricsReady && !isSingleBusiness) {
+        setReviewsStatus("Сначала посчитай метрики.", true);
+        return;
+    }
+    correlationInProgress = true;
+    correlationReady = false;
+    setReviewsStatus("Считаем корреляцию...", false);
+
+    const params = buildReviewParams();
+    const correlationUrl = new URL(`${API_BASE}/analytics/correlation`);
+    correlationUrl.searchParams.set("x", corrX.value);
+    correlationUrl.searchParams.set("y", corrY.value);
+    correlationUrl.searchParams.set("min_reviews", params.get("min_reviews"));
+    correlationUrl.searchParams.set("max_reviews_per_business", params.get("max_reviews_per_business"));
+    correlationUrl.searchParams.set("max_total_reviews", params.get("max_total_reviews"));
+    const businessId = corrBusinessId.value.trim();
+    if (businessId) {
+        correlationUrl.searchParams.set("business_id", businessId);
+    } else {
+        correlationUrl.searchParams.set("limit_businesses", params.get("limit"));
+        const city = params.get("city");
+        if (city) {
+            correlationUrl.searchParams.set("city", city);
+        }
+    }
+
+    try {
+        const correlationResponse = await fetch(correlationUrl);
         if (!correlationResponse.ok) {
             throw new Error(`correlation: ${correlationResponse.status}`);
         }
 
-        const metricsData = await metricsResponse.json();
         const correlationData = await correlationResponse.json();
-
-        renderScatter(metricsData.items || []);
+        correlationReady = (correlationData.items || []).length > 0;
         renderCorrelation(correlationData.items || [], correlationData.x, correlationData.y);
-        setReviewsStatus(`Загружено бизнесов: ${(metricsData.items || []).length}`, false);
+        if (isSingleBusiness) {
+            renderCorrelationOnMap(correlationData.items || [], correlationData.x, correlationData.y);
+        }
+        setReviewsStatus("Корреляция посчитана.", false);
     } catch (err) {
-        setReviewsStatus(`Ошибка загрузки: ${err.message}`, true);
+        setReviewsStatus(`Корреляция: ошибка (${err.message}).`, true);
+    } finally {
+        correlationInProgress = false;
     }
+}
+
+async function loadCorrelationForBusiness(businessId) {
+    if (!businessId) {
+        setReviewsStatus("Сначала выбери бизнес.", true);
+        return;
+    }
+    corrBusinessId.value = businessId;
+    await loadCorrelationOnly(true);
 }
 
 async function loadDensityHeatmap() {
@@ -677,6 +1292,8 @@ async function refreshMap() {
         loadDensityHeatmap(),
         loadMarkers()
     ]);
+    renderReviewMarkers(reviewsMetricsCache);
+    await loadReviewBaseMarkers();
 }
 
 const debouncedRefresh = debounce(refreshMap, 400);
@@ -688,11 +1305,60 @@ showDensity.addEventListener("change", refreshMap);
 showMarkers.addEventListener("change", refreshMap);
 cuisineSelect.addEventListener("change", refreshMap);
 loadReviewsBtn.addEventListener("click", loadReviewAnalytics);
+mapCorrelationBtn.addEventListener("click", () => {
+    const businessId = selectedBusiness?.business_id || selectedBusiness?.businessId || corrBusinessId.value.trim();
+    if (!selectedBusiness && businessId) {
+        lookupBusinessById(businessId).then(() => loadCorrelationForBusiness(businessId));
+        return;
+    }
+    loadCorrelationForBusiness(businessId);
+});
+mapReportBtn.addEventListener("click", () => {
+    if (correlationInProgress) {
+        setReviewsStatus("Отчет еще не готов — корреляция в процессе.", true);
+        return;
+    }
+    if (!correlationReady) {
+        setReviewsStatus("Отчет еще не готов — сначала посчитай корреляцию.", true);
+        return;
+    }
+    // toggle only when we have correlation results; ensure previous chart state is consistent
+    if (mapReportCard.classList.contains('hidden')) {
+        mapReportCard.classList.remove('hidden');
+    } else {
+        // hide and clear visual chart to avoid stale visuals
+        mapReportCard.classList.add('hidden');
+        if (reviewsMapCorrelationChart) {
+            try { reviewsMapCorrelationChart.destroy(); } catch (e) { /* ignore */ }
+            reviewsMapCorrelationChart = null;
+        }
+        if (mapReportMessage) {
+            mapReportMessage.style.display = 'block';
+        }
+        const ctx = document.getElementById('reviewsMapCorrelationChart');
+        if (ctx) ctx.style.display = 'none';
+    }
+});
+showReviewMarkers.addEventListener("change", updateReviewsMap);
+showReviewBase.addEventListener("change", updateReviewsMap);
+showReviewTopN.addEventListener("change", updateReviewsMap);
+reviewsHighlightMetric.addEventListener("change", updateReviewsMap);
+reviewsTopN.addEventListener("change", updateReviewsMap);
+refreshReviewsMapBtn.addEventListener("click", updateReviewsMap);
+if (corrBusinessId) {
+    corrBusinessId.addEventListener("change", () => lookupBusinessById(corrBusinessId.value.trim()));
+    corrBusinessId.addEventListener("blur", () => lookupBusinessById(corrBusinessId.value.trim()));
+}
+toggleCuisineFullscreen.addEventListener("click", () => {
+    const isActive = layout.classList.toggle('cuisine-fullscreen');
+    toggleCuisineFullscreen.textContent = isActive ? 'Свернуть' : 'Развернуть';
+});
 
 loadDistribution().then(refreshMap);
 
 const tabs = document.querySelectorAll('.tab');
 const panels = document.querySelectorAll('.panel');
+const layout = document.querySelector('.layout');
 
 tabs.forEach(tab => {
     tab.addEventListener('click', () => {
@@ -703,6 +1369,12 @@ tabs.forEach(tab => {
         panels.forEach(panel => {
             panel.classList.toggle('active', panel.id === panelId);
         });
+
+        if (panelId === 'reviewsChartsPanel') {
+            layout.classList.add('show-charts');
+        } else {
+            layout.classList.remove('show-charts');
+        }
 
         refreshMap();
     });
