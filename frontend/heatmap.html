@@ -146,7 +146,6 @@
             height: 260px !important;
             background: #f8fafc;
             border-radius: 12px;
-            padding: 8px;
         }
 
         .chart-card {
@@ -499,8 +498,8 @@ const mapReportMessage = document.getElementById('mapReportMessage');
 
 let densityLayer = null;
 let markerLayer = null;
-let reviewsMarkerLayer = null;
 let reviewsBaseMarkerLayer = null;
+let reviewsComputedMarkerLayer = null;
 let reviewsSelectedMarker = null;
 
 let reviewsMetricsCache = [];
@@ -697,8 +696,9 @@ function renderScatter(items) {
                 data: points,
                 backgroundColor: 'rgba(56, 189, 248, 0.85)',
                 borderColor: '#0ea5e9',
-                pointRadius: 4,
-                pointHoverRadius: 7
+                pointRadius: 5,
+                pointHoverRadius: 8,
+                pointHitRadius: 12
             }]
         },
         options: {
@@ -707,6 +707,19 @@ function renderScatter(items) {
             animation: {
                 duration: 800,
                 easing: 'easeOutQuart'
+            },
+            interaction: {
+                mode: 'nearest',
+                intersect: false
+            },
+            hover: {
+                mode: 'nearest',
+                intersect: false
+            },
+            elements: {
+                point: {
+                    hitRadius: 12
+                }
             },
             scales: {
                 x: { title: { display: true, text: xKey }, grid: { color: 'rgba(148, 163, 184, 0.2)' } },
@@ -856,33 +869,32 @@ function getMarkerRadius(zoom, isTop) {
 }
 
 function renderReviewMarkers(items) {
+    // showReviewMarkers controls computed review markers (topN red / blue others)
     if (!showReviewMarkers.checked) {
-        if (reviewsMarkerLayer) {
-            map.removeLayer(reviewsMarkerLayer);
-            reviewsMarkerLayer = null;
+        if (reviewsComputedMarkerLayer) {
+            map.removeLayer(reviewsComputedMarkerLayer);
+            reviewsComputedMarkerLayer = null;
         }
         return;
     }
 
+    // If user disabled topN display, still render computed markers (they will be all blue)
     if (!showReviewTopN.checked) {
-        if (reviewsMarkerLayer) {
-            map.removeLayer(reviewsMarkerLayer);
-            reviewsMarkerLayer = null;
-        }
-        return;
+        // fallthrough: we'll still build markers but mark none as top
     }
 
     const activePanel = document.querySelector('.panel.active');
     if (activePanel && activePanel.id !== 'reviewsMapPanel') {
-        if (reviewsMarkerLayer) {
-            map.removeLayer(reviewsMarkerLayer);
-            reviewsMarkerLayer = null;
+        if (reviewsComputedMarkerLayer) {
+            map.removeLayer(reviewsComputedMarkerLayer);
+            reviewsComputedMarkerLayer = null;
         }
         return;
     }
 
     const metric = reviewsHighlightMetric.value;
     const topN = Number(reviewsTopN.value || 10);
+    const isTopEnabled = showReviewTopN.checked;
 
     const valid = items.filter(item => item.latitude !== null && item.latitude !== undefined && item.longitude !== null && item.longitude !== undefined);
     const sorted = [...valid].sort((a, b) => {
@@ -890,13 +902,13 @@ function renderReviewMarkers(items) {
         const bv = getMetricValue(b, metric) ?? -Infinity;
         return bv - av;
     });
-    const topIds = new Set(sorted.slice(0, topN).map(item => item.business_id));
+    const topIds = isTopEnabled ? new Set(sorted.slice(0, topN).map(item => item.business_id)) : new Set();
 
-    if (reviewsMarkerLayer) {
-        map.removeLayer(reviewsMarkerLayer);
+    if (reviewsComputedMarkerLayer) {
+        map.removeLayer(reviewsComputedMarkerLayer);
     }
 
-    reviewsMarkerLayer = L.layerGroup();
+    reviewsComputedMarkerLayer = L.layerGroup();
 
     const zoom = map.getZoom();
     const baseMarkers = [];
@@ -934,10 +946,11 @@ function renderReviewMarkers(items) {
         }
     });
 
-    baseMarkers.forEach(marker => reviewsMarkerLayer.addLayer(marker));
-    topMarkers.forEach(marker => reviewsMarkerLayer.addLayer(marker));
+    // Ensure gray base layer (reviewsBaseMarkerLayer) is under computed markers
+    baseMarkers.forEach(marker => reviewsComputedMarkerLayer.addLayer(marker));
+    topMarkers.forEach(marker => reviewsComputedMarkerLayer.addLayer(marker));
 
-    reviewsMarkerLayer.addTo(map);
+    reviewsComputedMarkerLayer.addTo(map);
 }
 
 async function loadReviewBaseMarkers() {
@@ -958,13 +971,8 @@ async function loadReviewBaseMarkers() {
         return;
     }
 
-    if (reviewsMetricsCache.length) {
-        if (reviewsBaseMarkerLayer) {
-            map.removeLayer(reviewsBaseMarkerLayer);
-            reviewsBaseMarkerLayer = null;
-        }
-        return;
-    }
+    // Always attempt to load base markers (gray) so they remain available even after metrics are computed.
+    // This prevents 'disappearing' gray points when users calculate metrics.
 
     const bbox = getBBox();
     const url = new URL(`${API_BASE}/api/analytics/cuisines/map`);
@@ -1002,6 +1010,12 @@ async function loadReviewBaseMarkers() {
     });
 
     reviewsBaseMarkerLayer.addTo(map);
+    // Ensure computed markers (topN/red and blue) are brought above the base layer if present
+    if (reviewsComputedMarkerLayer) {
+        // remove and re-add to ensure order
+        map.removeLayer(reviewsComputedMarkerLayer);
+        reviewsComputedMarkerLayer.addTo(map);
+    }
 }
 
 function highlightSelectedBusiness(item) {
@@ -1070,10 +1084,9 @@ async function lookupBusinessById(businessId) {
 }
 
 async function updateReviewsMap() {
-    if (!reviewsMetricsCache.length) {
-        await loadReviewBaseMarkers();
-        return;
-    }
+    // Always ensure base markers are loaded first so gray points are present
+    await loadReviewBaseMarkers();
+    // Then render computed markers (top N / blue) above them
     renderReviewMarkers(reviewsMetricsCache);
 }
 
@@ -1144,7 +1157,7 @@ async function loadCorrelationOnly(isSingleBusiness) {
     correlationUrl.searchParams.set("max_reviews_per_business", params.get("max_reviews_per_business"));
     correlationUrl.searchParams.set("max_total_reviews", params.get("max_total_reviews"));
     const businessId = corrBusinessId.value.trim();
-    if (businessId) {
+    if (isSingleBusiness && businessId) {
         correlationUrl.searchParams.set("business_id", businessId);
     } else {
         correlationUrl.searchParams.set("limit_businesses", params.get("limit"));
@@ -1162,9 +1175,12 @@ async function loadCorrelationOnly(isSingleBusiness) {
 
         const correlationData = await correlationResponse.json();
         correlationReady = (correlationData.items || []).length > 0;
-        renderCorrelation(correlationData.items || [], correlationData.x, correlationData.y);
+        // If this is a single-business correlation request, render the per-business map chart only
+        // and do not overwrite the main reviewsCorrelationChart which shows multi-business correlations.
         if (isSingleBusiness) {
             renderCorrelationOnMap(correlationData.items || [], correlationData.x, correlationData.y);
+        } else {
+            renderCorrelation(correlationData.items || [], correlationData.x, correlationData.y);
         }
         setReviewsStatus("Корреляция посчитана.", false);
     } catch (err) {
@@ -1288,12 +1304,14 @@ async function loadMarkers() {
 }
 
 async function refreshMap() {
+    // Load density, cuisine markers and base (gray) review markers in parallel
     await Promise.all([
         loadDensityHeatmap(),
-        loadMarkers()
+        loadMarkers(),
+        loadReviewBaseMarkers()
     ]);
+    // Render computed review markers on top of base markers
     renderReviewMarkers(reviewsMetricsCache);
-    await loadReviewBaseMarkers();
 }
 
 const debouncedRefresh = debounce(refreshMap, 400);
