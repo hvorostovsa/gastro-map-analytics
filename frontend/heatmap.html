@@ -1,37 +1,327 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Geo Heatmap</title>
+    <title>Cuisine Analytics Map</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
     <style>
-        #map {
+        body {
+            margin: 0;
+            font-family: "Segoe UI", sans-serif;
+            color: #1e293b;
+        }
+
+        .layout {
+            display: flex;
             height: 100vh;
+            width: 100vw;
+        }
+
+        #map {
+            flex: 1;
+        }
+
+        .sidebar {
+            width: 380px;
+            background: #ffffff;
+            border-left: 1px solid #e2e8f0;
+            padding: 16px;
+            overflow-y: auto;
+        }
+
+        .card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            border: 1px solid #cbd5f5;
+            background: #f8fafc;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .tab.active {
+            background: #2563eb;
+            color: #ffffff;
+            border-color: #2563eb;
+        }
+
+        .card h3 {
+            margin: 0 0 8px;
+            font-size: 16px;
+        }
+
+        label {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 6px;
+        }
+
+        select {
             width: 100%;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid #cbd5f5;
+        }
+
+        input {
+            width: 100%;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid #cbd5f5;
+        }
+
+        button.primary {
+            background: #2563eb;
+            color: #ffffff;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .status {
+            font-size: 12px;
+            color: #1e293b;
+            margin-top: 6px;
+        }
+
+        .toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+
+        canvas {
+            width: 100% !important;
+            height: 260px !important;
+        }
+
+        .panel {
+            display: none;
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        .hint {
+            font-size: 12px;
+            color: #64748b;
         }
     </style>
 </head>
 <body>
 
-<div id="map"></div>
+<div class="layout">
+    <div id="map"></div>
+    <aside class="sidebar">
+        <div class="tabs">
+            <button class="tab active" data-panel="densityPanel">Плотность</button>
+            <button class="tab" data-panel="cuisinePanel">Кухни</button>
+            <button class="tab" data-panel="reviewsPanel">Отзывы</button>
+            <button class="tab" data-panel="forecastPanel">Прогноз</button>
+            <button class="tab" data-panel="marketPanel">Рынок</button>
+        </div>
+
+        <section class="panel active" id="densityPanel">
+            <div class="card">
+                <h3>Плотность заведений</h3>
+                <div class="toggle">
+                    <input type="checkbox" id="showDensity" checked />
+                    <label for="showDensity">Показывать плотность</label>
+                </div>
+                <p class="hint">Этот слой показывает распределение всех ресторанов в текущем bbox.</p>
+            </div>
+        </section>
+
+        <section class="panel" id="cuisinePanel">
+            <div class="card">
+                <h3>Классификация кухонь</h3>
+                <label for="cuisineSelect">Выберите кухню</label>
+                <select id="cuisineSelect"></select>
+                <div class="toggle">
+                    <input type="checkbox" id="showMarkers" checked />
+                    <label for="showMarkers">Маркерные рестораны</label>
+                </div>
+                <p class="hint">Кухни берутся из топ-20 по числу заведений. Клик по графику меняет кухню.</p>
+            </div>
+
+            <div class="card">
+                <h3>Доля кухонь (donut)</h3>
+                <canvas id="donutChart"></canvas>
+            </div>
+
+            <div class="card">
+                <h3>Топ кухонь (bar)</h3>
+                <canvas id="barChart"></canvas>
+            </div>
+        </section>
+
+        <section class="panel" id="reviewsPanel">
+            <div class="card">
+                <h3>Связь рейтингов и отзывов</h3>
+                <div class="grid-2">
+                    <div>
+                        <label for="reviewsCity">Город (опц.)</label>
+                        <input id="reviewsCity" placeholder="New Orleans" />
+                    </div>
+                    <div>
+                        <label for="reviewsLimit">Бизнесы (limit)</label>
+                        <input id="reviewsLimit" type="number" value="300" min="10" max="5000" />
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div>
+                        <label for="reviewsMin">Мин. отзывов</label>
+                        <input id="reviewsMin" type="number" value="30" min="1" max="100000" />
+                    </div>
+                    <div>
+                        <label for="reviewsMaxPer">Макс. отзывов/бизнес</label>
+                        <input id="reviewsMaxPer" type="number" value="300" min="50" max="5000" />
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div>
+                        <label for="reviewsMaxTotal">Макс. всего отзывов</label>
+                        <input id="reviewsMaxTotal" type="number" value="300000" min="1000" max="2000000" />
+                    </div>
+                    <div>
+                        <label for="scatterX">Scatter X</label>
+                        <select id="scatterX">
+                            <option value="avg_sentiment" selected>avg_sentiment</option>
+                            <option value="avg_stars">avg_stars</option>
+                            <option value="avg_review_length">avg_review_length</option>
+                            <option value="reviews_per_month">reviews_per_month</option>
+                            <option value="review_count">review_count</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div>
+                        <label for="scatterY">Scatter Y</label>
+                        <select id="scatterY">
+                            <option value="avg_stars" selected>avg_stars</option>
+                            <option value="avg_sentiment">avg_sentiment</option>
+                            <option value="avg_review_length">avg_review_length</option>
+                            <option value="reviews_per_month">reviews_per_month</option>
+                            <option value="review_count">review_count</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="corrY">Correlation Y</label>
+                        <select id="corrY">
+                            <option value="avg_stars" selected>avg_stars</option>
+                            <option value="avg_sentiment">avg_sentiment</option>
+                            <option value="avg_review_length">avg_review_length</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div>
+                        <label for="corrX">Correlation X</label>
+                        <select id="corrX">
+                            <option value="avg_sentiment" selected>avg_sentiment</option>
+                            <option value="avg_stars">avg_stars</option>
+                            <option value="avg_review_length">avg_review_length</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; align-items:flex-end;">
+                        <button class="primary" id="loadReviewsBtn">Загрузить</button>
+                    </div>
+                </div>
+                <p class="hint">Не завышай max_reviews_per_business / max_total_reviews — анализ может быть очень долгим.</p>
+                <div class="status" id="reviewsStatus"></div>
+            </div>
+
+            <div class="card">
+                <h3>Scatter: выбранные метрики</h3>
+                <canvas id="reviewsScatterChart"></canvas>
+            </div>
+
+            <div class="card">
+                <h3>Корреляции по бизнесам</h3>
+                <canvas id="reviewsCorrelationChart"></canvas>
+            </div>
+        </section>
+
+        <section class="panel" id="forecastPanel">
+            <div class="card">
+                <h3>Прогноз спроса</h3>
+                <p class="hint">В разработке: история активности + прогноз с доверительным интервалом.</p>
+            </div>
+        </section>
+
+        <section class="panel" id="marketPanel">
+            <div class="card">
+                <h3>Рынок и новые точки</h3>
+                <p class="hint">В разработке: карта роста рынка и перспективные зоны.</p>
+            </div>
+        </section>
+    </aside>
+</div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
+const API_BASE = "http://127.0.0.1:8000";
+
 const map = L.map('map').setView([34.05, -118.25], 12);
 
-// Base tiles (stable provider)
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     subdomains: 'abcd',
     maxZoom: 19,
     attribution: '&copy; OpenStreetMap & CARTO'
 }).addTo(map);
 
-let heatLayer = null;
+const cuisineSelect = document.getElementById('cuisineSelect');
+const showDensity = document.getElementById('showDensity');
+const showMarkers = document.getElementById('showMarkers');
+const reviewsCity = document.getElementById('reviewsCity');
+const reviewsLimit = document.getElementById('reviewsLimit');
+const reviewsMin = document.getElementById('reviewsMin');
+const reviewsMaxPer = document.getElementById('reviewsMaxPer');
+const reviewsMaxTotal = document.getElementById('reviewsMaxTotal');
+const scatterX = document.getElementById('scatterX');
+const scatterY = document.getElementById('scatterY');
+const corrX = document.getElementById('corrX');
+const corrY = document.getElementById('corrY');
+const loadReviewsBtn = document.getElementById('loadReviewsBtn');
+const reviewsStatus = document.getElementById('reviewsStatus');
 
-// debounce helper (prevents spam API calls)
+let densityLayer = null;
+let markerLayer = null;
+
+let donutChart = null;
+let barChart = null;
+let reviewsScatterChart = null;
+let reviewsCorrelationChart = null;
+
 function debounce(fn, delay) {
     let t;
     return function(...args) {
@@ -40,48 +330,383 @@ function debounce(fn, delay) {
     };
 }
 
-function loadHeatmap() {
+function getBBox() {
     const bounds = map.getBounds();
-
-    const bbox = [
+    return [
         bounds.getSouth(),
         bounds.getWest(),
         bounds.getNorth(),
         bounds.getEast()
     ].join(",");
-
-    const zoom = map.getZoom();
-
-    fetch(`http://127.0.0.1:8000/geo/heatmap?bbox=${bbox}&zoom=${zoom}`)
-        .then(r => r.json())
-        .then(data => {
-
-            const heatData = data.map(p => [
-                Number(p.lat),
-                Number(p.lon),
-                Number(p.intensity)
-            ]);
-
-            if (heatLayer) {
-                map.removeLayer(heatLayer);
-            }
-
-            heatLayer = L.heatLayer(heatData, {
-                radius: 35,
-                blur: 20,
-                maxZoom: 17,
-                minOpacity: 0.4
-            }).addTo(map);
-        });
 }
 
-const debouncedLoad = debounce(loadHeatmap, 300);
+async function loadDistribution() {
+    const response = await fetch(`${API_BASE}/api/analytics/cuisines/distribution?limit=20`);
+    const data = await response.json();
 
-map.on("moveend", debouncedLoad);
-map.on("zoomend", debouncedLoad);
+    cuisineSelect.innerHTML = "";
+    data.forEach((row, idx) => {
+        const option = document.createElement("option");
+        option.value = row.cuisine;
+        option.textContent = `${row.cuisine} (${row.business_count})`;
+        if (idx === 0) {
+            option.selected = true;
+        }
+        cuisineSelect.appendChild(option);
+    });
 
-// initial load
-loadHeatmap();
+    updateCharts(data);
+}
+
+function updateCharts(data) {
+    const labels = data.map(row => row.cuisine);
+    const values = data.map(row => row.business_count);
+
+    if (donutChart) {
+        donutChart.destroy();
+    }
+
+    if (barChart) {
+        barChart.destroy();
+    }
+
+    const donutCtx = document.getElementById('donutChart');
+    const barCtx = document.getElementById('barChart');
+
+    donutChart = new Chart(donutCtx, {
+        type: 'doughnut',
+        data: {
+            labels,
+            datasets: [{
+                data: values,
+                backgroundColor: labels.map((_, i) => `hsl(${(i * 30) % 360}, 70%, 60%)`),
+                borderWidth: 1
+            }]
+        },
+        options: {
+            plugins: {
+                legend: { display: false }
+            },
+            onClick: (_evt, items) => handleChartClick(items, labels)
+        }
+    });
+
+    barChart = new Chart(barCtx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                data: values,
+                backgroundColor: '#38bdf8'
+            }]
+        },
+        options: {
+            scales: {
+                x: { ticks: { display: false } },
+                y: { beginAtZero: true }
+            },
+            plugins: {
+                legend: { display: false }
+            },
+            onClick: (_evt, items) => handleChartClick(items, labels)
+        }
+    });
+}
+
+function handleChartClick(items, labels) {
+    if (!items || items.length === 0) {
+        return;
+    }
+
+    const idx = items[0].index;
+    const cuisine = labels[idx];
+    if (!cuisine) {
+        return;
+    }
+
+    cuisineSelect.value = cuisine;
+    refreshMap();
+}
+
+function buildReviewParams() {
+    const params = new URLSearchParams();
+    const city = reviewsCity.value.trim();
+    if (city) {
+        params.set("city", city);
+    }
+
+    params.set("limit", String(Number(reviewsLimit.value || 300)));
+    params.set("min_reviews", String(Number(reviewsMin.value || 30)));
+    params.set("max_reviews_per_business", String(Number(reviewsMaxPer.value || 300)));
+    params.set("max_total_reviews", String(Number(reviewsMaxTotal.value || 300000)));
+
+    return params;
+}
+
+function setReviewsStatus(message, isError = false) {
+    reviewsStatus.textContent = message;
+    reviewsStatus.style.color = isError ? "#dc2626" : "#1e293b";
+}
+
+function renderScatter(items) {
+    const xKey = scatterX.value;
+    const yKey = scatterY.value;
+
+    const points = items
+        .filter(item => item[xKey] !== null && item[yKey] !== null)
+        .map(item => ({
+            x: Number(item[xKey]),
+            y: Number(item[yKey]),
+            label: item.name
+        }));
+
+    if (reviewsScatterChart) {
+        reviewsScatterChart.destroy();
+    }
+
+    const ctx = document.getElementById('reviewsScatterChart');
+    reviewsScatterChart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: `${xKey} vs ${yKey}`,
+                data: points,
+                backgroundColor: '#38bdf8'
+            }]
+        },
+        options: {
+            scales: {
+                x: { title: { display: true, text: xKey } },
+                y: { title: { display: true, text: yKey } }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctxItem => {
+                            const raw = ctxItem.raw || {};
+                            return `${raw.label || ''} (${xKey}: ${ctxItem.parsed.x}, ${yKey}: ${ctxItem.parsed.y})`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderCorrelation(items, xKey, yKey) {
+    const labels = items.map(item => item.name || item.business_id);
+    const values = items.map(item => Number(item.pearson_r || 0));
+
+    if (reviewsCorrelationChart) {
+        reviewsCorrelationChart.destroy();
+    }
+
+    const ctx = document.getElementById('reviewsCorrelationChart');
+    reviewsCorrelationChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: `pearson_r (${xKey} vs ${yKey})`,
+                data: values,
+                backgroundColor: '#f97316'
+            }]
+        },
+        options: {
+            scales: {
+                x: { ticks: { display: false } },
+                y: { beginAtZero: true, min: 0, max: 1 }
+            },
+            plugins: {
+                legend: { display: false }
+            }
+        }
+    });
+}
+
+async function loadReviewAnalytics() {
+    setReviewsStatus("Загрузка...", false);
+
+    const params = buildReviewParams();
+    const metricsUrl = new URL(`${API_BASE}/analytics/business-metrics`);
+    metricsUrl.search = params.toString();
+
+    const correlationUrl = new URL(`${API_BASE}/analytics/correlation`);
+    correlationUrl.searchParams.set("x", corrX.value);
+    correlationUrl.searchParams.set("y", corrY.value);
+    correlationUrl.searchParams.set("min_reviews", params.get("min_reviews"));
+    correlationUrl.searchParams.set("max_reviews_per_business", params.get("max_reviews_per_business"));
+    correlationUrl.searchParams.set("max_total_reviews", params.get("max_total_reviews"));
+    correlationUrl.searchParams.set("limit_businesses", params.get("limit"));
+    const city = params.get("city");
+    if (city) {
+        correlationUrl.searchParams.set("city", city);
+    }
+
+    try {
+        const [metricsResponse, correlationResponse] = await Promise.all([
+            fetch(metricsUrl),
+            fetch(correlationUrl)
+        ]);
+
+        if (!metricsResponse.ok) {
+            throw new Error(`business-metrics: ${metricsResponse.status}`);
+        }
+        if (!correlationResponse.ok) {
+            throw new Error(`correlation: ${correlationResponse.status}`);
+        }
+
+        const metricsData = await metricsResponse.json();
+        const correlationData = await correlationResponse.json();
+
+        renderScatter(metricsData.items || []);
+        renderCorrelation(correlationData.items || [], correlationData.x, correlationData.y);
+        setReviewsStatus(`Загружено бизнесов: ${(metricsData.items || []).length}`, false);
+    } catch (err) {
+        setReviewsStatus(`Ошибка загрузки: ${err.message}`, true);
+    }
+}
+
+async function loadDensityHeatmap() {
+    if (!showDensity.checked) {
+        if (densityLayer) {
+            map.removeLayer(densityLayer);
+            densityLayer = null;
+        }
+        return;
+    }
+
+    const activePanel = document.querySelector('.panel.active');
+    if (activePanel && activePanel.id !== 'densityPanel') {
+        if (densityLayer) {
+            map.removeLayer(densityLayer);
+            densityLayer = null;
+        }
+        return;
+    }
+
+    const bbox = getBBox();
+    const zoom = map.getZoom();
+
+    const response = await fetch(`${API_BASE}/geo/heatmap?bbox=${bbox}&zoom=${zoom}`);
+    const data = await response.json();
+
+    const heatData = data.map(p => [
+        Number(p.lat),
+        Number(p.lon),
+        Number(p.intensity)
+    ]);
+
+    if (densityLayer) {
+        map.removeLayer(densityLayer);
+    }
+
+    densityLayer = L.heatLayer(heatData, {
+        radius: 35,
+        blur: 20,
+        maxZoom: 17,
+        minOpacity: 0.4
+    }).addTo(map);
+}
+
+async function loadMarkers() {
+    if (!showMarkers.checked) {
+        if (markerLayer) {
+            map.removeLayer(markerLayer);
+            markerLayer = null;
+        }
+        return;
+    }
+
+    const activePanel = document.querySelector('.panel.active');
+    if (activePanel && activePanel.id !== 'cuisinePanel') {
+        if (markerLayer) {
+            map.removeLayer(markerLayer);
+            markerLayer = null;
+        }
+        return;
+    }
+
+    const bbox = getBBox();
+    const cuisine = cuisineSelect.value;
+
+    const url = new URL(`${API_BASE}/api/analytics/cuisines/map`);
+    url.searchParams.set("bbox", bbox);
+    url.searchParams.set("limit", "800");
+    if (cuisine) {
+        url.searchParams.set("cuisine", cuisine);
+    }
+
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (markerLayer) {
+        map.removeLayer(markerLayer);
+    }
+
+    markerLayer = L.layerGroup();
+
+    data.forEach(p => {
+        if (!p.lat || !p.lon) {
+            return;
+        }
+
+        const marker = L.circleMarker([p.lat, p.lon], {
+            radius: 4,
+            color: '#2563eb',
+            fillColor: '#60a5fa',
+            fillOpacity: 0.8,
+            weight: 1
+        });
+
+        marker.bindPopup(`
+            <strong>${p.name}</strong><br/>
+            ${p.city || ''} ${p.state || ''}<br/>
+            ⭐ ${p.stars ?? '-'} | 리뷰 ${p.review_count ?? 0}
+        `);
+
+        markerLayer.addLayer(marker);
+    });
+
+    markerLayer.addTo(map);
+}
+
+async function refreshMap() {
+    await Promise.all([
+        loadDensityHeatmap(),
+        loadMarkers()
+    ]);
+}
+
+const debouncedRefresh = debounce(refreshMap, 400);
+
+map.on("moveend", debouncedRefresh);
+map.on("zoomend", debouncedRefresh);
+
+showDensity.addEventListener("change", refreshMap);
+showMarkers.addEventListener("change", refreshMap);
+cuisineSelect.addEventListener("change", refreshMap);
+loadReviewsBtn.addEventListener("click", loadReviewAnalytics);
+
+loadDistribution().then(refreshMap);
+
+const tabs = document.querySelectorAll('.tab');
+const panels = document.querySelectorAll('.panel');
+
+tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+
+        const panelId = tab.getAttribute('data-panel');
+        panels.forEach(panel => {
+            panel.classList.toggle('active', panel.id === panelId);
+        });
+
+        refreshMap();
+    });
+});
 
 </script>
 
