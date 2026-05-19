@@ -220,6 +220,8 @@ def _compute_business_metrics_live(
                 "avg_stars": avg_stars,
                 "review_count": rc,
                 "reviews_per_month": float(reviews_per_month),
+                "latitude": None,
+                "longitude": None,
             }
         )
 
@@ -229,7 +231,29 @@ def _compute_business_metrics_live(
             str(r.get("business_id") or ""),
         )
     )
-    return items[:limit_businesses]
+    items = items[:limit_businesses]
+
+    if items:
+        ids = [cast(str, item.get("business_id")) for item in items if item.get("business_id")]
+        if ids:
+            rows = execute_query(
+                """
+                SELECT business_id, latitude, longitude
+                FROM businesses
+                WHERE business_id = ANY(%s)
+                """,
+                fetch=True,
+                params=(ids,),
+            )
+            coords = {cast(str, r[0]): (r[1], r[2]) for r in (rows or [])}
+            for item in items:
+                bid = cast(str, item.get("business_id") or "")
+                if bid in coords:
+                    lat, lon = coords[bid]
+                    item["latitude"] = float(lat) if lat is not None else None
+                    item["longitude"] = float(lon) if lon is not None else None
+
+    return items
 
 
 @router.get("/business-metrics")
@@ -275,6 +299,34 @@ def business_summary(
         raise HTTPException(status_code=404, detail="Business not found or no reviews")
 
     return items[0]
+
+
+@router.get("/business/{business_id}/location")
+def business_location(business_id: str):
+    rows = execute_query(
+        """
+        SELECT business_id, name, city, state, latitude, longitude, stars, review_count
+        FROM businesses
+        WHERE business_id = %s
+        """,
+        fetch=True,
+        params=(business_id,),
+    )
+
+    if not rows:
+        raise HTTPException(status_code=404, detail="Business not found")
+
+    r = rows[0]
+    return {
+        "business_id": r[0],
+        "name": r[1],
+        "city": r[2],
+        "state": r[3],
+        "latitude": float(r[4]) if r[4] is not None else None,
+        "longitude": float(r[5]) if r[5] is not None else None,
+        "stars": float(r[6]) if r[6] is not None else None,
+        "review_count": r[7],
+    }
 
 
 def _pearson(xs: list[float], ys: list[float]) -> float | None:
