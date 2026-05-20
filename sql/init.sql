@@ -60,6 +60,18 @@ CREATE TABLE reviews (
     review_date TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS public.city_district_grid_9 (
+  city     text   NOT NULL,
+  state    text   NOT NULL,
+  district text   NOT NULL,
+  west     double precision NOT NULL,
+  south    double precision NOT NULL,
+  east     double precision NOT NULL,
+  north    double precision NOT NULL,
+  geom     geometry(Polygon, 4326) NOT NULL,
+  PRIMARY KEY (city, state, district)
+);
+
 CREATE INDEX idx_business_geom
 ON businesses
 USING GIST (geom);
