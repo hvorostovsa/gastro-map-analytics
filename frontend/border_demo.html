@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>County Borders Map - Target States</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+        
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+        
+        /* Control panel */
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            min-width: 250px;
+            font-size: 14px;
+        }
+        
+        .controls h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .controls select, 
+        .controls input,
+        .controls button {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .controls button {
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            border: none;
+            transition: background-color 0.3s;
+        }
+        
+        .controls button:hover {
+            background-color: #45a049;
+        }
+        
+        .controls button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .info-panel {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            font-size: 12px;
+            max-width: 300px;
+            pointer-events: none;
+        }
+        
+        .info-panel strong {
+            color: #4CAF50;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2000;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 20px 40px;
+            border-radius: 8px;
+            font-size: 16px;
+            display: none;
+        }
+        
+        .legend {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            font-size: 12px;
+        }
+        
+        .legend h4 {
+            margin-bottom: 5px;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 3px;
+            background: #3388ff;
+            margin-right: 5px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 3px;
+        }
+        
+        @media (max-width: 768px) {
+            .controls {
+                top: auto;
+                bottom: 10px;
+                right: 10px;
+                left: auto;
+                max-width: 200px;
+                font-size: 12px;
+                padding: 10px;
+            }
+            
+            .controls select,
+            .controls input,
+            .controls button {
+                padding: 5px;
+                font-size: 11px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <div class="controls">
+        <h3>🗺️ County Borders</h3>
+        <select id="stateSelect">
+            <option value="">All Target States</option>
+            <option value="CA">California (CA)</option>
+            <option value="NV">Nevada (NV)</option>
+            <option value="ID">Idaho (ID)</option>
+            <option value="AZ">Arizona (AZ)</option>
+            <option value="LA">Louisiana (LA)</option>
+            <option value="FL">Florida (FL)</option>
+            <option value="MO">Missouri (MO)</option>
+            <option value="TN">Tennessee (TN)</option>
+            <option value="IN">Indiana (IN)</option>
+            <option value="PA">Pennsylvania (PA)</option>
+        </select>
+        
+        <input type="text" id="searchInput" placeholder="Search county name..." />
+        
+        <div style="display: flex; gap: 5px;">
+            <select id="simplifySelect" style="flex: 1;">
+                <option value="0">Highest Detail</option>
+                <option value="0.0005">Very High</option>
+                <option value="0.001" selected>High (Default)</option>
+                <option value="0.005">Medium</option>
+                <option value="0.01">Low</option>
+                <option value="0.05">Very Low (Faster)</option>
+            </select>
+            
+            <button id="loadBtn" style="flex: 1;">Load</button>
+        </div>
+        
+        <button id="resetViewBtn" style="background-color: #2196F3;">Reset View</button>
+    </div>
+    
+    <div class="info-panel" id="infoPanel">
+        <strong>ℹ️ Info</strong><br/>
+        Click on any county to see details
+    </div>
+    
+    <div class="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color"></div>
+            <span>County Boundary</span>
+        </div>
+        <div class="legend-item">
+            <div style="width:20px;height:3px;background:#ff7800;margin-right:5px;"></div>
+            <span>Hovered County</span>
+        </div>
+    </div>
+    
+    <div class="loading" id="loading">
+        Loading counties...
+    </div>
+    
+    <script>
+        // API endpoint (adjust to your server URL)
+        const API_BASE_URL = 'http://localhost:8000'; // Change this to your API URL
+        
+        // Initialize map
+        const map = L.map('map').setView([39.5, -98.0], 5);
+        
+        // Add base tile layer
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 19,
+            minZoom: 3
+        }).addTo(map);
+        
+        // Layer groups
+        let countyLayer = null;
+        let currentFeatures = [];
+        
+        // Helper function to show/hide loading
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+        
+        // Helper function to update info panel
+        function updateInfoPanel(message) {
+            const panel = document.getElementById('infoPanel');
+            panel.innerHTML = message;
+        }
+        
+        // Load county borders from API
+        async function loadCountyBorders() {
+            const state = document.getElementById('stateSelect').value;
+            const search = document.getElementById('searchInput').value;
+            const simplify = parseFloat(document.getElementById('simplifySelect').value);
+            
+            showLoading(true);
+            
+            // Build URL
+            let url = `${API_BASE_URL}/counties/borders?simplify=${simplify}`;
+            if (state) url += `&state=${state}`;
+            if (search) url += `&county_name=${encodeURIComponent(search)}`;
+            
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Remove existing layer
+                if (countyLayer) {
+                    map.removeLayer(countyLayer);
+                }
+                
+                // Store features
+                currentFeatures = data.features || [];
+                
+                if (currentFeatures.length === 0) {
+                    updateInfoPanel('<strong>⚠️ No counties found</strong><br/>Try adjusting your search or filters');
+                    return;
+                }
+                
+                // Create GeoJSON layer
+                countyLayer = L.geoJSON(currentFeatures, {
+                    style: function(feature) {
+                        return {
+                            color: '#3388ff',
+                            weight: 2,
+                            fillColor: '#3388ff',
+                            fillOpacity: 0.1,
+                            opacity: 0.7
+                        };
+                    },
+                    onEachFeature: function(feature, layer) {
+                        const props = feature.properties;
+                        
+                        // Bind popup
+                        layer.bindPopup(`
+                            <strong>${props.county_name}</strong><br/>
+                            <strong>State:</strong> ${props.state}<br/>
+                            <strong>FIPS:</strong> ${props.geoid}<br/>
+                            <strong>Area:</strong> ${props.area_sq_km ? props.area_sq_km.toLocaleString() + ' km²' : 'N/A'}
+                        `);
+                        
+                        // Hover effects
+                        layer.on('mouseover', function(e) {
+                            layer.setStyle({
+                                color: '#ff7800',
+                                weight: 4,
+                                fillOpacity: 0.3
+                            });
+                            
+                            updateInfoPanel(`
+                                <strong>📍 ${props.county_name}, ${props.state}</strong><br/>
+                                FIPS: ${props.geoid}<br/>
+                                Area: ${props.area_sq_km ? props.area_sq_km.toLocaleString() + ' km²' : 'N/A'}<br/>
+                                <i>Click for more details</i>
+                            `);
+                        });
+                        
+                        layer.on('mouseout', function(e) {
+                            countyLayer.resetStyle(layer);
+                            updateInfoPanel('<strong>ℹ️ Info</strong><br/>Click on any county to see details');
+                        });
+                    }
+                }).addTo(map);
+                
+                // Fit bounds to loaded counties
+                if (currentFeatures.length > 0) {
+                    const bounds = countyLayer.getBounds();
+                    if (bounds.isValid()) {
+                        map.fitBounds(bounds, { padding: [20, 20] });
+                    }
+                }
+                
+                updateInfoPanel(`
+                    <strong>✅ Loaded ${currentFeatures.length} counties</strong><br/>
+                    ${state ? `State: ${state}` : 'All target states'} | 
+                    ${search ? `Search: "${search}"` : 'No search'} | 
+                    Simplify: ${simplify}
+                `);
+                
+            } catch (error) {
+                console.error('Error loading counties:', error);
+                updateInfoPanel(`<strong>❌ Error</strong><br/>${error.message}<br/>Make sure the API server is running`);
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        // Reset map view to show all target states
+        async function resetView() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/counties/bbox`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.bbox) {
+                        map.fitBounds([
+                            [data.bbox[1], data.bbox[0]], // [lat, lon]
+                            [data.bbox[3], data.bbox[2]]
+                        ]);
+                        return;
+                    }
+                }
+                // Fallback to default view
+                map.setView([39.5, -98.0], 5);
+            } catch (error) {
+                console.error('Error getting bounds:', error);
+                map.setView([39.5, -98.0], 5);
+            }
+        }
+        
+        // Event listeners
+        document.getElementById('loadBtn').addEventListener('click', loadCountyBorders);
+        document.getElementById('resetViewBtn').addEventListener('click', resetView);
+        
+        // Load on page load
+        loadCountyBorders();
+        
+        // Optional: Load on Enter key in search
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                loadCountyBorders();
+            }
+        });
+        
+        // Optional: Add zoom/toggle controls
+        L.control.scale({ imperial: true, metric: true }).addTo(map);
+        
+        // Log to console
+        console.log('Map ready! Use controls to filter counties');
+    </script>
+</body>
+</html>

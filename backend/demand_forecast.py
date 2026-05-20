@@ -108,8 +108,8 @@ def _activity_summary(
     df_dense: pd.DataFrame,
     *,
     window: int = 5,
-    checkins_near_mean_ratio: float = 0.8,
-    min_review_periods: int = 4,
+    checkins_near_mean_ratio: float = 1.0,
+    min_review_periods: int = 5,
 ) -> Mapping[str, Any]:
     if df_dense.empty:
         return {
@@ -573,6 +573,10 @@ def demand_predict(
     horizon: int = Query(default=14, ge=1, le=90),
     granularity: Granularity = Query(default="day"),
     include_history: bool = Query(default=True),
+    dense_history: bool = Query(
+        default=True,
+        description="If true, history_points are dense with zero-filled gaps; if false, history_points include only periods with data.",
+    ),
     train_end: str | None = Query(
         default=None,
         description="Optional backtest cutoff (YYYY-MM-DD). Model is trained only up to this date; forecast is compared to actuals if available.",
@@ -582,19 +586,33 @@ def demand_predict(
 
     train_end_d = _parse_iso_date(train_end)
 
-    df = _build_history_frame(
+    df_full = _build_history_frame(
         business_id=business_id,
         granularity=granularity,
         start=None,
-        end=train_end_d,
+        end=None,
         dense=True,
     )
 
-    if df.empty:
+    if df_full.empty:
         raise HTTPException(status_code=400, detail="No history found for this business")
 
+    activity = _activity_summary(df_full)
+    last_history_date = cast(date, df_full["ds"].iloc[-1])
+    last_active_date = _parse_iso_date(activity.get("last_active_date"))
+
+    effective_train_end = train_end_d or last_active_date or last_history_date
+
+    if effective_train_end > last_history_date:
+        raise HTTPException(status_code=400, detail="train_end cannot be after last history date")
+
+    df_train = df_full[df_full["ds"] <= effective_train_end].copy()
+
+    if df_train.empty:
+        raise HTTPException(status_code=400, detail="No history found for this business after applying train_end")
+
     forecast_df, model_info = _fit_and_forecast(
-        df=df,
+        df=df_train,
         granularity=granularity,
         horizon=horizon,
     )
@@ -605,30 +623,37 @@ def demand_predict(
         "features": model_info_dict.get("features", []),
         "horizon": horizon,
         "granularity": granularity,
-        "series_stats": _series_stats(df),
+        "series_stats": _series_stats(df_train),
     }
 
-    last_hist_date = cast(date, df["ds"].iloc[-1]).isoformat()
+    last_hist_date = cast(date, df_train["ds"].iloc[-1]).isoformat()
 
     actual_points = None
-    if train_end_d is not None:
-        df_full = _build_history_frame(
-            business_id=business_id,
-            granularity=granularity,
-            start=None,
-            end=None,
-            dense=True,
-        )
+    if effective_train_end is not None:
         forecast_dates = [date.fromisoformat(r["date"]) for r in forecast_df.to_dict(orient="records")]
         actual_points = _actual_points_for_dates(df_full, forecast_dates)
+
+    history_df = None
+    if include_history:
+        if dense_history:
+            history_df = df_train
+        else:
+            history_df = _build_history_frame(
+                business_id=business_id,
+                granularity=granularity,
+                start=None,
+                end=effective_train_end,
+                dense=False,
+            )
 
     return {
         "business": business.__dict__,
         "granularity": granularity,
         "last_history_date": last_hist_date,
         "model": model_info,
-        "history_points": _frame_to_points(df) if include_history else None,
+        "history_points": _frame_to_points(history_df) if history_df is not None else None,
         "forecast_points": forecast_df.to_dict(orient="records"),
-        "train_end": train_end_d.isoformat() if train_end_d is not None else None,
+        "train_end": effective_train_end.isoformat() if effective_train_end is not None else None,
         "actual_points": actual_points,
+        "activity": activity,
     }
