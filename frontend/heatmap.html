@@ -274,10 +274,10 @@
         }
 
         .county-boundary {
-            stroke: #f59e0b;
+            stroke: #6b7280;
             stroke-width: 2;
             stroke-opacity: 0.7;
-            fill: #fbbf24;
+            fill: #9ca3af;
             fill-opacity: 0.15;
             transition: fill-opacity 0.2s;
         }
@@ -288,9 +288,10 @@
         }
 
         .legend-county {
-            background: #fbbf24;
-            border: 2px solid #f59e0b;
+            background: #9ca3af;
+            border: 2px solid #6b7280;
         }
+
     </style>
 </head>
 <body>
@@ -2030,7 +2031,6 @@ async function loadDensityHeatmap() {
 }
 
 async function loadCountyBoundaries() {
-    // showCountyBoundaries controls county/district boundaries on the density panel
     if (!showCountyBoundaries.checked) {
         if (countyLayer) {
             map.removeLayer(countyLayer);
@@ -2048,10 +2048,7 @@ async function loadCountyBoundaries() {
         return;
     }
 
-    // Request county borders from the backend (border.py)
-    // The backend router is expected to be mounted under /api/geo
     const url = new URL(`${API_BASE}/counties/borders`);
-    // use a small simplify tolerance for performance
     url.searchParams.set('simplify', '0.001');
 
     try {
@@ -2068,10 +2065,10 @@ async function loadCountyBoundaries() {
 
         function styleFeature(feature) {
             return {
-                color: '#f59e0b',
+                color: '#6b7280',
                 weight: 2,
                 opacity: 0.8,
-                fillColor: '#fbbf24',
+                fillColor: '#9ca3af',
                 fillOpacity: 0.12
             };
         }

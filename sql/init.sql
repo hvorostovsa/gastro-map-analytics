@@ -18,6 +18,8 @@ CREATE TABLE businesses (
     is_open BOOLEAN,
 
     geom GEOGRAPHY(POINT, 4326)
+
+    county TEXT
 );
 
 CREATE TABLE categories (
