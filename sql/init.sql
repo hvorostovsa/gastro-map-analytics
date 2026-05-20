@@ -93,3 +93,17 @@ ON businesses (city, business_id);
 
 CREATE INDEX IF NOT EXISTS idx_reviews_business_date_id
 ON reviews (business_id, review_date DESC, review_id);
+
+
+
+
+CREATE TABLE counties (
+    id SERIAL PRIMARY KEY,
+    geoid VARCHAR(5) UNIQUE NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    state VARCHAR(2) NOT NULL,
+    geom GEOGRAPHY(MULTIPOLYGON, 4326) NOT NULL
+);
+
+CREATE INDEX idx_counties_state ON counties(state);
+CREATE INDEX idx_counties_geom ON counties USING GIST(geom);
