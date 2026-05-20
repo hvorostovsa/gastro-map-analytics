@@ -220,3 +220,4 @@ __marimo__/
 .streamlit/secrets.toml
 .idea/
 data/*.json
+data/tl_2025_us_county/
