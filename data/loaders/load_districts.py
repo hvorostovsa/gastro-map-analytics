@@ -232,14 +232,20 @@ def _assign_from_geojson(
         )
 
 
-def _assign_grid_8(
+def _assign_grid_9(
     *,
     city_variants: list[str],
     state: str,
     district_column: str,
     overwrite: bool,
 ) -> None:
-    """Fallback: 8 pseudo-districts by splitting city bbox into a 2x4 grid."""
+    """Fallback: always split city bbox into a 3x3 grid (9 districts).
+
+    This guarantees stable assignment and lets you render all 9 districts even
+    if some have zero businesses.
+
+    Labels: N, NE, E, SE, S, SW, W, NW, CENTER.
+    """
 
     district_column = _sanitize_ident(district_column)
 
@@ -270,23 +276,29 @@ def _assign_grid_8(
                     SELECT
                         b.business_id,
                         CASE
-                            WHEN p.dlat IS NULL OR p.dlon IS NULL THEN 'AUTO_CENTER'
+                            WHEN p.dlat IS NULL OR p.dlon IS NULL THEN 'CENTER'
                             ELSE (
-                                'AUTO_' ||
                                 CASE
-                                    WHEN FLOOR((b.latitude - p.south) / p.dlat * 2) >= 1 THEN 'N'
-                                    ELSE 'S'
-                                END || '_' ||
-                                CASE
-                                    WHEN FLOOR((b.longitude - p.west) / p.dlon * 4) <= 0 THEN 'W'
-                                    WHEN FLOOR((b.longitude - p.west) / p.dlon * 4) = 1 THEN 'WC'
-                                    WHEN FLOOR((b.longitude - p.west) / p.dlon * 4) = 2 THEN 'EC'
-                                    ELSE 'E'
+                                    WHEN r = 1 AND c = 1 THEN 'CENTER'
+                                    WHEN r = 2 AND c = 1 THEN 'N'
+                                    WHEN r = 2 AND c = 2 THEN 'NE'
+                                    WHEN r = 1 AND c = 2 THEN 'E'
+                                    WHEN r = 0 AND c = 2 THEN 'SE'
+                                    WHEN r = 0 AND c = 1 THEN 'S'
+                                    WHEN r = 0 AND c = 0 THEN 'SW'
+                                    WHEN r = 1 AND c = 0 THEN 'W'
+                                    WHEN r = 2 AND c = 0 THEN 'NW'
+                                    ELSE 'CENTER'
                                 END
                             )
                         END AS district_name
                     FROM businesses b
                     CROSS JOIN params p
+                    CROSS JOIN LATERAL (
+                        SELECT
+                            LEAST(2, GREATEST(0, FLOOR((b.latitude - p.south) / p.dlat * 3)))::int AS r,
+                            LEAST(2, GREATEST(0, FLOOR((b.longitude - p.west) / p.dlon * 3)))::int AS c
+                    ) rc
                     WHERE b.state = :state
                       AND b.city = ANY(:cities)
                       AND b.latitude IS NOT NULL
@@ -313,7 +325,7 @@ def load_districts(
     """Assign districts to businesses.
 
     - For priority cities: if a matching GeoJSON exists under geo_dir, assign by polygons.
-    - Otherwise (or if no GeoJSON found): assign 8 pseudo-districts (2x4 grid) inside city bbox.
+    - Otherwise (or if no GeoJSON found): assign 9 pseudo-districts (3x3 grid) inside city bbox.
 
     City variants like "Saint Louis" and "St. Louis" are grouped together.
     """
@@ -356,7 +368,7 @@ def load_districts(
             except Exception as e:
                 print(f"[geojson] failed for {city_variants} ({state}): {e}. Falling back to grid.")
 
-        _assign_grid_8(
+        _assign_grid_9(
             city_variants=city_variants,
             state=state,
             district_column=district_column,
