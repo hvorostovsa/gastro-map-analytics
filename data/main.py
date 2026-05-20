@@ -4,7 +4,7 @@ import time
 from loaders.load_businesses import load_businesses
 from loaders.load_reviews import load_reviews
 from loaders.load_checkins import load_checkins
-from loaders.load_districts import load_districts
+from loaders.load_counties import load_counties
 
 def main():
     parser = argparse.ArgumentParser()
@@ -17,14 +17,9 @@ def main():
     parser.add_argument("--all", action="store_true")
 
     parser.add_argument("--path", default="/data")
+    
+    parser.add_argument("--counties", action="store_true")
 
-    # districts options (keep minimal)
-    parser.add_argument("--district-column", default="district")
-    parser.add_argument(
-        "--districts-overwrite",
-        action="store_true",
-        help="Overwrite existing district values (default: only fill NULL)",
-    )
 
     args = parser.parse_args()
 
@@ -39,12 +34,8 @@ def main():
     if args.all or args.checkin:
         load_checkins(f"{args.path}/yelp_academic_dataset_checkin.json")
 
-    if args.all or args.districts:
-        load_districts(
-            geo_dir=f"{args.path}/geo",
-            district_column=args.district_column,
-            overwrite=bool(args.districts_overwrite),
-        )
+    if args.all or args.counties:
+        load_counties(f"{args.path}/tl_2025_us_county/tl_2025_us_county.shp")
 
 if __name__ == "__main__":
     main()
