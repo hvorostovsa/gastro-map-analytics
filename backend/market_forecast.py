@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from math import log1p
 from typing import Any, DefaultDict, Mapping, cast
 from collections import defaultdict
 
@@ -89,6 +90,17 @@ def _linear_forecast_by_year(
         forecast[yr] = max(0, int(round(float(y_hat))))
 
     return forecast, int(sum(forecast.values()))
+
+
+def _scale_01(values: list[float]) -> list[float]:
+    if not values:
+        return []
+    lo = min(values)
+    hi = max(values)
+    if hi <= lo:
+        return [0.0 for _ in values]
+    span = hi - lo
+    return [(value - lo) / span for value in values]
 
 
 def _fetch_county_market_rows(
@@ -276,6 +288,43 @@ def _compute_county_market(
             }
         )
 
+    if out:
+        years = float(max(1, years_ahead))
+        activity_scaled = _scale_01([log1p(float(r["open_restaurants"]) or 0.0) for r in out])
+        density_scaled = _scale_01([float(r["density_per_km2"] or 0.0) for r in out])
+
+        # growth relative to current restaurants: (new per year) / (current count)
+        growth_values: list[float] = []
+        for r in out:
+            open_r = float(r.get("open_restaurants") or 0.0)
+            per_year = float(r.get("forecast_total_opened_next_years") or 0.0) / years
+            growth_rel = per_year / max(1.0, open_r)
+            growth_values.append(growth_rel)
+
+        growth_scaled = _scale_01(growth_values)
+
+        for idx, row in enumerate(out):
+            density = density_scaled[idx]
+            growth = growth_scaled[idx]
+            open_restaurants = float(row.get("open_restaurants") or 0.0)
+
+            density_comp = 1.0 - density
+            growth_comp = 1.0 - growth
+
+            # strong decaying penalty for very low absolute counts (visible under ~100)
+            low_count_penalty = (1.0 / (1.0 + (open_restaurants / 100.0) ** 3)) * density_comp
+
+            score = 100.0 * (
+                0.6 * density_comp
+                + 0.4 * growth_comp
+                - 0.9 * low_count_penalty
+            )
+
+            row["recommendation_score"] = float(max(0.0, min(100.0, score)))
+    else:
+        for row in out:
+            row["recommendation_score"] = 0.0
+
     out.sort(key=lambda r: (str(r.get("state") or ""), str(r.get("county") or "")))
     return out
 
@@ -301,43 +350,3 @@ def market_forecast(
         as_of_year=as_of_year,
         forecast_method=forecast_method,
     )
-
-
-@router.get("/recommendations")
-def market_recommendations(
-    years_ahead: int = Query(5, ge=1, le=50),
-    lookback_years: int = Query(10, ge=1, le=50),
-    states: list[str] | None = Query(None),
-    geoids: list[str] | None = Query(None),
-    limit: int = Query(50, ge=1, le=5000),
-    as_of_year: int | None = Query(None, ge=1900, le=9999),
-    forecast_method: str = Query("linear_all", regex="^(linear_all|weighted)$"),
-):
-    state_list = _split_csv(states)
-    geoid_list = _split_csv(geoids)
-
-    items = list(
-        _compute_county_market(
-            states=state_list or None,
-            geoids=geoid_list or None,
-            years_ahead=years_ahead,
-            lookback_years=lookback_years,
-            random_n=None,
-            as_of_year=as_of_year,
-            forecast_method=forecast_method,
-        )
-    )
-
-    eps = 1e-9
-    for r in items:
-        area = float(r.get("area_km2") or 0.0)
-        density = float(r.get("density_per_km2") or 0.0)
-        forecast_total = float(r.get("forecast_total_opened_next_years") or 0.0)
-
-        growth_per_year = forecast_total / float(max(1, years_ahead))
-        growth_per_km2 = (growth_per_year / area) if area > 0 else 0.0
-        score = growth_per_km2 / (density + eps)
-        r["recommendation_score"] = float(score)
-
-    items.sort(key=lambda r: float(r.get("recommendation_score") or 0.0), reverse=True)
-    return items[:limit]
