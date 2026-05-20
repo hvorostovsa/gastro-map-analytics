@@ -18,8 +18,6 @@ CREATE TABLE businesses (
     is_open BOOLEAN,
 
     geom GEOGRAPHY(POINT, 4326)
-
-    district TEXT
 );
 
 CREATE TABLE categories (
@@ -60,17 +58,14 @@ CREATE TABLE reviews (
     review_date TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS public.city_district_grid_9 (
-  city     text   NOT NULL,
-  state    text   NOT NULL,
-  district text   NOT NULL,
-  west     double precision NOT NULL,
-  south    double precision NOT NULL,
-  east     double precision NOT NULL,
-  north    double precision NOT NULL,
-  geom     geometry(Polygon, 4326) NOT NULL,
-  PRIMARY KEY (city, state, district)
+CREATE TABLE counties (
+    id SERIAL PRIMARY KEY,
+    geoid VARCHAR(5) UNIQUE NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    state VARCHAR(2) NOT NULL,
+    geom GEOGRAPHY(MULTIPOLYGON, 4326) NOT NULL
 );
+
 
 CREATE INDEX idx_business_geom
 ON businesses
@@ -94,16 +89,6 @@ ON businesses (city, business_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_business_date_id
 ON reviews (business_id, review_date DESC, review_id);
 
-
-
-
-CREATE TABLE counties (
-    id SERIAL PRIMARY KEY,
-    geoid VARCHAR(5) UNIQUE NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    state VARCHAR(2) NOT NULL,
-    geom GEOGRAPHY(MULTIPOLYGON, 4326) NOT NULL
-);
 
 CREATE INDEX idx_counties_state ON counties(state);
 CREATE INDEX idx_counties_geom ON counties USING GIST(geom);
