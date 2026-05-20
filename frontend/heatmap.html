@@ -243,14 +243,21 @@
             gap: 12px 16px;
         }
 
-        .forecast-compare-grid {
+        .dual-forecast-grid {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 12px;
         }
 
-        .forecast-compare-grid canvas {
-            height: 220px !important;
+        .dual-forecast-grid canvas {
+            height: 300px !important;
+        }
+
+        .line-toggle-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 14px;
+            margin: 8px 0 10px;
         }
 
         .panel {
@@ -524,34 +531,78 @@
 
             <div class="card">
                 <h3>Признаки (reviews) vs посещаемость</h3>
+                <div class="line-toggle-grid">
+                    <div class="toggle">
+                        <input type="checkbox" id="showFeatureCheckins" checked />
+                        <label for="showFeatureCheckins">Посещаемость</label>
+                    </div>
+                    <div class="toggle">
+                        <input type="checkbox" id="showFeatureReviews" checked />
+                        <label for="showFeatureReviews">Reviews</label>
+                    </div>
+                    <div class="toggle">
+                        <input type="checkbox" id="showFeatureStars" checked />
+                        <label for="showFeatureStars">Avg stars</label>
+                    </div>
+                </div>
                 <div class="chart-placeholder" id="forecastFeaturesPlaceholder">Нужна история по бизнесу для построения.</div>
                 <canvas id="forecastFeaturesChart"></canvas>
             </div>
 
             <div class="card">
-                <h3>Сравнение 3 бизнесов</h3>
+                <h3>Прогноз для 2 бизнесов</h3>
                 <div class="forecast-grid">
                     <div>
-                        <label for="compareBusiness1">Business #1</label>
-                        <input id="compareBusiness1" placeholder="stable" />
+                        <label for="dualForecastBusiness1">Business #1</label>
+                        <input id="dualForecastBusiness1" placeholder="zJpZ-uQ_F0XVgK1u98uWSg" />
                     </div>
                     <div>
-                        <label for="compareBusiness2">Business #2</label>
-                        <input id="compareBusiness2" placeholder="seasonal" />
+                        <label for="dualForecastBusiness2">Business #2</label>
+                        <input id="dualForecastBusiness2" placeholder="_ab50qdWOk0DdB6XOrBitw" />
                     </div>
                     <div>
-                        <label for="compareBusiness3">Business #3</label>
-                        <input id="compareBusiness3" placeholder="sparse" />
+                        <label for="dualForecastGranularity">Гранулярность</label>
+                        <select id="dualForecastGranularity">
+                            <option value="day" selected>day</option>
+                            <option value="week">week</option>
+                            <option value="month">month</option>
+                            <option value="quarter">quarter</option>
+                            <option value="year">year</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="dualForecastHorizon">Horizon (периоды)</label>
+                        <input id="dualForecastHorizon" type="number" value="14" min="1" max="90" />
+                    </div>
+                    <div>
+                        <label for="dualForecastTrainEnd">Train end (опц.)</label>
+                        <input id="dualForecastTrainEnd" type="date" />
+                    </div>
+                    <div class="toggle">
+                        <input type="checkbox" id="dualForecastIncludeHistory" checked />
+                        <label for="dualForecastIncludeHistory">Включить историю</label>
+                    </div>
+                    <div class="toggle">
+                        <input type="checkbox" id="dualForecastDenseHistory" checked />
+                        <label for="dualForecastDenseHistory">Dense история (нулевые точки)</label>
                     </div>
                 </div>
                 <div style="display:flex; align-items:flex-end; margin-top: 8px;">
-                    <button class="primary" id="loadCompareBtn">Сравнить</button>
+                    <button class="primary" id="loadDualForecastBtn">Построить два прогноза</button>
                 </div>
-                <div class="status" id="compareStatus"></div>
-                <div class="forecast-compare-grid" style="margin-top: 10px;">
-                    <canvas id="compareChart1"></canvas>
-                    <canvas id="compareChart2"></canvas>
-                    <canvas id="compareChart3"></canvas>
+                <div class="status" id="dualForecastStatus"></div>
+                <p class="hint">Эти настройки работают отдельно от одиночного прогноза выше.</p>
+                <div class="dual-forecast-grid" style="margin-top: 10px;">
+                    <div>
+                        <h3 style="font-size: 14px;">Business #1</h3>
+                        <div class="chart-placeholder" id="dualForecastPlaceholder1">Сначала построй прогноз.</div>
+                        <canvas id="dualForecastChart1"></canvas>
+                    </div>
+                    <div>
+                        <h3 style="font-size: 14px;">Business #2</h3>
+                        <div class="chart-placeholder" id="dualForecastPlaceholder2">Сначала построй прогноз.</div>
+                        <canvas id="dualForecastChart2"></canvas>
+                    </div>
                 </div>
             </div>
         </section>
@@ -621,11 +672,18 @@ const forecastStatus = document.getElementById('forecastStatus');
 const forecastMainPlaceholder = document.getElementById('forecastMainPlaceholder');
 const forecastFeaturesPlaceholder = document.getElementById('forecastFeaturesPlaceholder');
 const toggleForecastFullscreen = document.getElementById('toggleForecastFullscreen');
-const compareBusiness1 = document.getElementById('compareBusiness1');
-const compareBusiness2 = document.getElementById('compareBusiness2');
-const compareBusiness3 = document.getElementById('compareBusiness3');
-const loadCompareBtn = document.getElementById('loadCompareBtn');
-const compareStatus = document.getElementById('compareStatus');
+const showFeatureCheckins = document.getElementById('showFeatureCheckins');
+const showFeatureReviews = document.getElementById('showFeatureReviews');
+const showFeatureStars = document.getElementById('showFeatureStars');
+const dualForecastBusiness1 = document.getElementById('dualForecastBusiness1');
+const dualForecastBusiness2 = document.getElementById('dualForecastBusiness2');
+const dualForecastGranularity = document.getElementById('dualForecastGranularity');
+const dualForecastHorizon = document.getElementById('dualForecastHorizon');
+const dualForecastTrainEnd = document.getElementById('dualForecastTrainEnd');
+const dualForecastIncludeHistory = document.getElementById('dualForecastIncludeHistory');
+const dualForecastDenseHistory = document.getElementById('dualForecastDenseHistory');
+const loadDualForecastBtn = document.getElementById('loadDualForecastBtn');
+const dualForecastStatus = document.getElementById('dualForecastStatus');
 
 let densityLayer = null;
 let markerLayer = null;
@@ -646,7 +704,7 @@ let reviewsCorrelationChart = null;
 let reviewsMapCorrelationChart = null;
 let forecastMainChart = null;
 let forecastFeaturesChart = null;
-let compareCharts = [null, null, null];
+let dualForecastCharts = [null, null];
 let reviewsMetricsReady = false;
 let correlationInProgress = false;
 let correlationReady = false;
@@ -816,9 +874,17 @@ function setForecastStatus(message, isError = false) {
     forecastStatus.style.color = isError ? "#dc2626" : "#1e293b";
 }
 
-function buildForecastParams() {
+function setDualForecastStatus(message, isError = false) {
+    if (!dualForecastStatus) {
+        return;
+    }
+    dualForecastStatus.textContent = message;
+    dualForecastStatus.style.color = isError ? "#dc2626" : "#1e293b";
+}
+
+function buildForecastParams(businessId = forecastBusinessId.value.trim()) {
     const params = new URLSearchParams();
-    params.set("business_id", forecastBusinessId.value.trim());
+    params.set("business_id", businessId);
     params.set("granularity", forecastGranularity.value);
     params.set("horizon", String(Number(forecastHorizon.value || 14)));
     params.set("include_history", forecastIncludeHistory.checked ? "true" : "false");
@@ -828,6 +894,49 @@ function buildForecastParams() {
         params.set("train_end", trainEnd);
     }
     return params;
+}
+
+function buildDualForecastParams(businessId) {
+    const params = new URLSearchParams();
+    params.set("business_id", businessId);
+    params.set("granularity", dualForecastGranularity.value);
+    params.set("horizon", String(Number(dualForecastHorizon.value || 14)));
+    params.set("include_history", dualForecastIncludeHistory.checked ? "true" : "false");
+    params.set("dense_history", dualForecastDenseHistory.checked ? "true" : "false");
+    const trainEnd = dualForecastTrainEnd.value;
+    if (trainEnd) {
+        params.set("train_end", trainEnd);
+    }
+    return params;
+}
+
+function applyFeatureLineVisibility(chart) {
+    if (!chart) {
+        return;
+    }
+
+    const visibilityByLabel = {
+        'Checkins': showFeatureCheckins ? showFeatureCheckins.checked : true,
+        'Review count': showFeatureReviews ? showFeatureReviews.checked : true,
+        'Avg review stars': showFeatureStars ? showFeatureStars.checked : true
+    };
+
+    chart.data.datasets.forEach((dataset, idx) => {
+        if (dataset.label === 'История (checkins)') {
+            chart.setDatasetVisibility(idx, showFeatureCheckins ? showFeatureCheckins.checked : true);
+            return;
+        }
+        if (Object.prototype.hasOwnProperty.call(visibilityByLabel, dataset.label)) {
+            chart.setDatasetVisibility(idx, visibilityByLabel[dataset.label]);
+        }
+    });
+    chart.update();
+}
+
+function applyAllFeatureLineVisibility() {
+    applyFeatureLineVisibility(forecastMainChart);
+    applyFeatureLineVisibility(forecastFeaturesChart);
+    dualForecastCharts.forEach(chart => applyFeatureLineVisibility(chart));
 }
 
 function renderForecastMain(payload) {
@@ -988,6 +1097,8 @@ function renderForecastMain(payload) {
     if (forecastMainPlaceholder) {
         forecastMainPlaceholder.style.display = 'none';
     }
+
+    applyFeatureLineVisibility(forecastMainChart);
 }
 
 function renderForecastFeatures(payload) {
@@ -1076,36 +1187,72 @@ function renderForecastFeatures(payload) {
     if (forecastFeaturesPlaceholder) {
         forecastFeaturesPlaceholder.style.display = 'none';
     }
+
+    applyFeatureLineVisibility(forecastFeaturesChart);
 }
 
-function renderCompareChart(index, payload) {
+function renderDualForecastChart(index, payload, businessId) {
+    const history = payload.history_points || [];
     const forecast = payload.forecast_points || [];
     const actual = payload.actual_points || [];
-    const labels = forecast.map(p => p.date);
+    const labels = Array.from(new Set([
+        ...history.map(p => p.date),
+        ...forecast.map(p => p.date)
+    ]));
 
-    const forecastValues = forecast.map(p => p.yhat);
+    const historyValues = labels.map(label => {
+        const found = history.find(p => p.date === label);
+        return found ? found.checkins : null;
+    });
+    const forecastValues = labels.map(label => {
+        const found = forecast.find(p => p.date === label);
+        return found ? found.yhat : null;
+    });
     const actualValues = labels.map(label => {
         const found = actual.find(p => p.date === label);
         return found ? found.actual : null;
     });
+    const reviewValues = labels.map(label => {
+        const found = history.find(p => p.date === label);
+        return found ? found.review_count : null;
+    });
+    const avgStarsValues = labels.map(label => {
+        const found = history.find(p => p.date === label);
+        return found ? found.avg_review_stars : null;
+    });
 
-    if (compareCharts[index]) {
-        compareCharts[index].destroy();
+    if (dualForecastCharts[index]) {
+        dualForecastCharts[index].destroy();
     }
 
-    const ctx = document.getElementById(`compareChart${index + 1}`);
-    compareCharts[index] = new Chart(ctx, {
+    const placeholder = document.getElementById(`dualForecastPlaceholder${index + 1}`);
+    const ctx = document.getElementById(`dualForecastChart${index + 1}`);
+    dualForecastCharts[index] = new Chart(ctx, {
         type: 'line',
         data: {
             labels,
             datasets: [
+                {
+                    label: 'Checkins',
+                    data: historyValues,
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37, 99, 235, 0.16)',
+                    borderWidth: 2,
+                    tension: 0.25,
+                    spanGaps: true,
+                    pointRadius: 0,
+                    yAxisID: 'y'
+                },
                 {
                     label: 'Forecast',
                     data: forecastValues,
                     borderColor: '#16a34a',
                     backgroundColor: 'rgba(22, 163, 74, 0.2)',
                     borderWidth: 2,
-                    tension: 0.2
+                    tension: 0.2,
+                    spanGaps: true,
+                    pointRadius: 0,
+                    yAxisID: 'y'
                 },
                 {
                     label: 'Actual',
@@ -1114,7 +1261,31 @@ function renderCompareChart(index, payload) {
                     backgroundColor: 'rgba(249, 115, 22, 0.2)',
                     borderWidth: 2,
                     tension: 0.2,
-                    spanGaps: true
+                    spanGaps: true,
+                    pointRadius: 2,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Review count',
+                    data: reviewValues,
+                    borderColor: '#64748b',
+                    backgroundColor: 'rgba(100, 116, 139, 0.16)',
+                    borderWidth: 1,
+                    tension: 0.2,
+                    spanGaps: true,
+                    pointRadius: 0,
+                    yAxisID: 'yReviews'
+                },
+                {
+                    label: 'Avg review stars',
+                    data: avgStarsValues,
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245, 158, 11, 0.16)',
+                    borderWidth: 1,
+                    tension: 0.2,
+                    spanGaps: true,
+                    pointRadius: 0,
+                    yAxisID: 'yStars'
                 }
             ]
         },
@@ -1122,14 +1293,29 @@ function renderCompareChart(index, payload) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: false }
+                legend: { display: true, position: 'bottom' },
+                title: {
+                    display: true,
+                    text: businessId
+                }
+            },
+            interaction: {
+                mode: 'index',
+                intersect: false
             },
             scales: {
-                x: { ticks: { display: false }, grid: { display: false } },
-                y: { beginAtZero: true, grid: { color: 'rgba(148, 163, 184, 0.2)' } }
+                x: { ticks: { maxRotation: 0, maxTicksLimit: 5 }, grid: { display: false } },
+                y: { beginAtZero: true, position: 'left', grid: { color: 'rgba(148, 163, 184, 0.2)' } },
+                yReviews: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } },
+                yStars: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } }
             }
         }
     });
+
+    if (placeholder) {
+        placeholder.style.display = 'none';
+    }
+    applyFeatureLineVisibility(dualForecastCharts[index]);
 }
 
 async function loadForecast() {
@@ -1166,31 +1352,22 @@ async function loadForecast() {
     }
 }
 
-async function loadCompare() {
-    const ids = [compareBusiness1.value.trim(), compareBusiness2.value.trim(), compareBusiness3.value.trim()];
+async function loadDualForecast() {
+    const ids = [dualForecastBusiness1.value.trim(), dualForecastBusiness2.value.trim()];
     if (ids.every(id => !id)) {
-        if (compareStatus) {
-            compareStatus.textContent = "Укажи хотя бы один business_id.";
-            compareStatus.style.color = "#dc2626";
-        }
+        setDualForecastStatus("Укажи хотя бы один business_id.", true);
         return;
     }
 
-    if (compareStatus) {
-        compareStatus.textContent = "Считаем сравнение...";
-        compareStatus.style.color = "#1e293b";
-    }
-
-    const baseParams = buildForecastParams();
-    baseParams.set("include_history", "false");
+    setDualForecastStatus("Считаем два прогноза...", false);
 
     try {
         await Promise.all(ids.map(async (id, idx) => {
             if (!id) {
                 return;
             }
-            const params = new URLSearchParams(baseParams);
-            params.set("business_id", id);
+
+            const params = buildDualForecastParams(id);
             const url = new URL(`${API_BASE}/demand/predict`);
             url.search = params.toString();
             const response = await fetch(url);
@@ -1198,17 +1375,11 @@ async function loadCompare() {
                 throw new Error(`predict ${id}: ${response.status}`);
             }
             const payload = await response.json();
-            renderCompareChart(idx, payload);
+            renderDualForecastChart(idx, payload, id);
         }));
-        if (compareStatus) {
-            compareStatus.textContent = "Сравнение готово.";
-            compareStatus.style.color = "#1e293b";
-        }
+        setDualForecastStatus("Два прогноза готовы.", false);
     } catch (err) {
-        if (compareStatus) {
-            compareStatus.textContent = `Ошибка сравнения: ${err.message}`;
-            compareStatus.style.color = "#dc2626";
-        }
+        setDualForecastStatus(`Ошибка прогноза: ${err.message}`, true);
     }
 }
 
@@ -1984,8 +2155,17 @@ refreshReviewsMapBtn.addEventListener("click", updateReviewsMap);
 if (loadForecastBtn) {
     loadForecastBtn.addEventListener("click", loadForecast);
 }
-if (loadCompareBtn) {
-    loadCompareBtn.addEventListener("click", loadCompare);
+if (loadDualForecastBtn) {
+    loadDualForecastBtn.addEventListener("click", loadDualForecast);
+}
+if (showFeatureCheckins) {
+    showFeatureCheckins.addEventListener("change", applyAllFeatureLineVisibility);
+}
+if (showFeatureReviews) {
+    showFeatureReviews.addEventListener("change", applyAllFeatureLineVisibility);
+}
+if (showFeatureStars) {
+    showFeatureStars.addEventListener("change", applyAllFeatureLineVisibility);
 }
 if (corrBusinessId) {
     corrBusinessId.addEventListener("change", () => lookupBusinessById(corrBusinessId.value.trim()));
