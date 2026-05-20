@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
 <head>
     <title>Cuisine Analytics Map</title>
@@ -237,6 +237,30 @@
             height: 320px !important;
         }
 
+        #cuisineAreasChart {
+            height: 100% !important;
+        }
+
+        .chart-shell {
+            position: relative;
+            width: 100%;
+            background: #f8fafc;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .chart-shell canvas {
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
+            background: transparent;
+            border-radius: 12px;
+        }
+
+        .area-chart-shell {
+            height: 380px;
+        }
+
         .forecast-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -370,7 +394,9 @@
                 <p class="hint">Heatmap строится по конкретным заведениям выбранной кухни. График ниже показывает распределение по районам.</p>
                 <div class="status" id="cuisineAreasStatus"></div>
                 <div class="chart-placeholder" id="cuisineAreasPlaceholder">Выбери кухню и нажми «Загрузить».</div>
-                <canvas id="cuisineAreasChart" class="sidebar-chart"></canvas>
+                <div class="chart-shell area-chart-shell">
+                    <canvas id="cuisineAreasChart"></canvas>
+                </div>
                 <div class="area-list" id="cuisineAreasList"></div>
             </div>
 
@@ -379,6 +405,10 @@
                 <div class="toggle">
                     <input type="checkbox" id="showTopCuisineAreas" />
                     <label for="showTopCuisineAreas">Показывать районы и подписи на карте</label>
+                </div>
+                <div class="toggle">
+                    <input type="checkbox" id="showTopCuisineLabels" checked />
+                    <label for="showTopCuisineLabels">Показывать подписи</label>
                 </div>
                 <p class="hint">Отдельный слой: контуры всех counties и подпись самой популярной кухни в районе.</p>
                 <div class="status" id="topCuisineAreasStatus"></div>
@@ -693,6 +723,7 @@ const cuisineSelect = document.getElementById('cuisineSelect');
 const loadCuisineAreasBtn = document.getElementById('loadCuisineAreasBtn');
 const currentCuisineAreaLabel = document.getElementById('currentCuisineAreaLabel');
 const showTopCuisineAreas = document.getElementById('showTopCuisineAreas');
+const showTopCuisineLabels = document.getElementById('showTopCuisineLabels');
 const topCuisineAreasStatus = document.getElementById('topCuisineAreasStatus');
 const cuisineAreasStatus = document.getElementById('cuisineAreasStatus');
 const cuisineAreasPlaceholder = document.getElementById('cuisineAreasPlaceholder');
@@ -769,6 +800,7 @@ let cuisineAreaHeatLayer = null;
 let cuisineAreaMarkerLayer = null;
 let topCuisineCountyLayer = null;
 let topCuisineLabelLayer = null;
+let topCuisineAreasCache = null;
 let cuisineMarkerRequestId = 0;
 let activeCuisineHeatmap = null;
 let reviewsScatterChart = null;
@@ -834,6 +866,91 @@ async function loadDistribution() {
     updateCurrentCuisineAreaLabel();
 }
 
+function renderBarChart(ctx, labels, values, options = {}) {
+    const tickFontSize = options.tickFontSize || 12;
+    const tooltipFontSize = options.tooltipFontSize || 12;
+    const tooltipTitleFontSize = options.tooltipTitleFontSize || tooltipFontSize;
+
+    return new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: options.label || '',
+                data: values,
+                backgroundColor: options.color || 'rgba(56, 189, 248, 0.85)',
+                borderRadius: 6,
+                maxBarThickness: options.maxBarThickness || 42
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: {
+                padding: {
+                    top: 8,
+                    right: 12,
+                    bottom: 8,
+                    left: 12
+                }
+            },
+            animation: {
+                duration: 800,
+                easing: 'easeOutQuart'
+            },
+            interaction: {
+                mode: 'index',
+                axis: 'x',
+                intersect: false
+            },
+            scales: {
+                x: { ticks: { display: false }, grid: { display: false } },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(148, 163, 184, 0.2)' },
+                    ticks: {
+                        color: '#475569',
+                        padding: 8,
+                        font: {
+                            size: tickFontSize,
+                            lineHeight: 1.35
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    enabled: true,
+                    mode: 'index',
+                    axis: 'x',
+                    intersect: false,
+                    position: 'nearest',
+                    displayColors: false,
+                    titleSpacing: 4,
+                    bodySpacing: 4,
+                    padding: 10,
+                    caretPadding: 8,
+                    titleFont: {
+                        size: tooltipTitleFontSize,
+                        lineHeight: 1.35,
+                        weight: '700'
+                    },
+                    bodyFont: {
+                        size: tooltipFontSize,
+                        lineHeight: 1.35
+                    },
+                    callbacks: {
+                        title: items => labels[items[0].dataIndex] || '',
+                        label: item => `${options.valueLabel || 'Заведений'}: ${item.parsed.y}`
+                    }
+                }
+            },
+            onClick: options.onClick || undefined
+        }
+    });
+}
+
 function updateCharts(data) {
     const labels = data.map(row => row.cuisine);
     const values = data.map(row => row.business_count);
@@ -874,32 +991,8 @@ function updateCharts(data) {
         }
     });
 
-    barChart = new Chart(barCtx, {
-        type: 'bar',
-        data: {
-            labels,
-            datasets: [{
-                data: values,
-                backgroundColor: 'rgba(56, 189, 248, 0.85)',
-                borderRadius: 6
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: {
-                duration: 800,
-                easing: 'easeOutQuart'
-            },
-            scales: {
-                x: { ticks: { display: false }, grid: { display: false } },
-                y: { beginAtZero: true, grid: { color: 'rgba(148, 163, 184, 0.2)' } }
-            },
-            plugins: {
-                legend: { display: false }
-            },
-            onClick: (_evt, items) => handleChartClick(items, labels)
-        }
+    barChart = renderBarChart(barCtx, labels, values, {
+        onClick: (_evt, items) => handleChartClick(items, labels)
     });
 }
 
@@ -962,6 +1055,63 @@ function clearTopCuisineAreaLayers() {
         map.removeLayer(topCuisineLabelLayer);
         topCuisineLabelLayer = null;
     }
+}
+
+function renderTopCuisineLabels(topItems) {
+    if (topCuisineLabelLayer) {
+        map.removeLayer(topCuisineLabelLayer);
+        topCuisineLabelLayer = null;
+    }
+    if (!showTopCuisineLabels || !showTopCuisineLabels.checked) {
+        return;
+    }
+
+    topCuisineLabelLayer = L.layerGroup();
+    (topItems || []).forEach(item => {
+        if (item.lat === null || item.lat === undefined || item.lon === null || item.lon === undefined) {
+            return;
+        }
+        const marker = L.marker([item.lat, item.lon], {
+            interactive: false,
+            icon: L.divIcon({
+                className: '',
+                html: `<div class="county-cuisine-label"><strong>${item.cuisine}</strong>${item.area_name}</div>`,
+                iconSize: [120, 40],
+                iconAnchor: [60, 20]
+            })
+        });
+        topCuisineLabelLayer.addLayer(marker);
+    });
+    topCuisineLabelLayer.addTo(map);
+}
+
+function renderTopCuisineAreaLayers(topItems, borders) {
+    const topByGeoid = new Map((topItems || []).map(item => [item.geoid, item]));
+
+    clearTopCuisineAreaLayers();
+
+    topCuisineCountyLayer = L.geoJSON(borders.features || [], {
+        style: feature => {
+            const item = topByGeoid.get(feature.properties?.geoid);
+            return {
+                color: '#1d4ed8',
+                weight: item ? 2.4 : 1.4,
+                fillColor: '#38bdf8',
+                fillOpacity: item ? 0.08 : 0.025,
+                opacity: item ? 0.9 : 0.45
+            };
+        },
+        onEachFeature: (feature, layer) => {
+            const props = feature.properties || {};
+            const item = topByGeoid.get(props.geoid);
+            layer.bindPopup(`
+                <strong>${props.county_name || item?.area_name || '-'}, ${props.state || item?.state || '-'}</strong><br/>
+                ${item ? `Топ-кухня: ${item.cuisine}<br/>Заведений: ${item.business_count}` : 'Нет данных по кухням'}
+            `);
+        }
+    }).addTo(map);
+
+    renderTopCuisineLabels(topItems);
 }
 
 async function renderCuisineBusinessHeatmap(cuisine) {
@@ -1033,68 +1183,32 @@ function renderCuisineAreas(items) {
     const labels = valid.slice(0, 12).map(item => `${item.area_name}, ${item.state}`);
     const values = valid.slice(0, 12).map(item => Number(item.business_count || 0));
     const ctx = document.getElementById('cuisineAreasChart');
-    cuisineAreasChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels,
-            datasets: [{
-                label: cuisineSelect.value,
-                data: values,
-                backgroundColor: 'rgba(37, 99, 235, 0.78)',
-                borderRadius: 6
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                x: { ticks: { display: false }, grid: { display: false } },
-                y: { beginAtZero: true, grid: { color: 'rgba(148, 163, 184, 0.2)' } }
-            },
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        title: items => labels[items[0].dataIndex] || '',
-                        label: item => `Заведений: ${item.parsed.y}`
-                    }
-                }
-            }
-        }
+    cuisineAreasChart = renderBarChart(ctx, labels, values, {
+        label: cuisineSelect.value,
+        color: 'rgba(37, 99, 235, 0.78)',
+        tickFontSize: 14,
+        tooltipFontSize: 14,
+        tooltipTitleFontSize: 14,
+        maxBarThickness: 56
     });
+    requestAnimationFrame(() => cuisineAreasChart?.resize());
 
     if (cuisineAreaMarkerLayer) {
         map.removeLayer(cuisineAreaMarkerLayer);
         cuisineAreaMarkerLayer = null;
     }
-    if (!valid.length) {
-        return;
-    }
-
-    const maxCount = Math.max(...valid.map(item => Number(item.business_count || 0)), 1);
-    cuisineAreaMarkerLayer = L.layerGroup();
-    valid.forEach(item => {
-        const radius = Math.max(5, Math.min(18, 5 + (Number(item.business_count || 0) / maxCount) * 16));
-        const marker = L.circleMarker([item.lat, item.lon], {
-            radius,
-            color: '#1d4ed8',
-            fillColor: '#38bdf8',
-            fillOpacity: 0.35,
-            weight: 1
-        });
-        marker.bindPopup(`
-            <strong>${item.area_name}, ${item.state}</strong><br/>
-            ${cuisineSelect.value}: ${item.business_count}
-        `);
-        cuisineAreaMarkerLayer.addLayer(marker);
-    });
-    cuisineAreaMarkerLayer.addTo(map);
 }
 
 async function loadTopCuisineAreas() {
     if (!showTopCuisineAreas || !showTopCuisineAreas.checked) {
         clearTopCuisineAreaLayers();
         setTopCuisineAreasStatus("");
+        return;
+    }
+
+    if (topCuisineAreasCache) {
+        renderTopCuisineAreaLayers(topCuisineAreasCache.topItems, topCuisineAreasCache.borders);
+        setTopCuisineAreasStatus(`Показано районов: ${(topCuisineAreasCache.borders.features || []).length}. Подписей с топ-кухней: ${topCuisineAreasCache.topItems.length}.`, false);
         return;
     }
 
@@ -1120,6 +1234,11 @@ async function loadTopCuisineAreas() {
 
         const topItems = await topResponse.json();
         const borders = await bordersResponse.json();
+        topCuisineAreasCache = { topItems: topItems || [], borders };
+        renderTopCuisineAreaLayers(topCuisineAreasCache.topItems, topCuisineAreasCache.borders);
+        setTopCuisineAreasStatus(`Показано районов: ${(borders.features || []).length}. Подписей с топ-кухней: ${(topItems || []).length}.`, false);
+        return;
+
         const topByGeoid = new Map((topItems || []).map(item => [item.geoid, item]));
 
         clearTopCuisineAreaLayers();
@@ -2492,6 +2611,18 @@ if (loadCuisineAreasBtn) {
 if (showTopCuisineAreas) {
     showTopCuisineAreas.addEventListener("change", loadTopCuisineAreas);
 }
+if (showTopCuisineLabels) {
+    showTopCuisineLabels.addEventListener("change", () => {
+        if (!showTopCuisineAreas || !showTopCuisineAreas.checked || !topCuisineAreasCache) {
+            if (topCuisineLabelLayer) {
+                map.removeLayer(topCuisineLabelLayer);
+                topCuisineLabelLayer = null;
+            }
+            return;
+        }
+        renderTopCuisineLabels(topCuisineAreasCache.topItems);
+    });
+}
 loadReviewsBtn.addEventListener("click", loadReviewAnalytics);
 mapCorrelationBtn.addEventListener("click", () => {
     const businessId = selectedBusiness?.business_id || selectedBusiness?.businessId || corrBusinessId.value.trim();
@@ -2605,3 +2736,4 @@ tabs.forEach(tab => {
 
 </body>
 </html>
+
