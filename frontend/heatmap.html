@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
 <head>
     <title>Cuisine Analytics Map</title>
@@ -237,6 +237,30 @@
             height: 320px !important;
         }
 
+        #cuisineAreasChart {
+            height: 100% !important;
+        }
+
+        .chart-shell {
+            position: relative;
+            width: 100%;
+            background: #f8fafc;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .chart-shell canvas {
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
+            background: transparent;
+            border-radius: 12px;
+        }
+
+        .area-chart-shell {
+            height: 380px;
+        }
+
         .forecast-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -258,6 +282,41 @@
             flex-wrap: wrap;
             gap: 8px 14px;
             margin: 8px 0 10px;
+        }
+
+        .area-list {
+            display: grid;
+            gap: 6px;
+            margin-top: 8px;
+            font-size: 12px;
+        }
+
+        .area-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 6px 8px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+        }
+
+        .county-cuisine-label {
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid #2563eb;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.16);
+            color: #0f172a;
+            font-size: 11px;
+            line-height: 1.2;
+            padding: 4px 6px;
+            text-align: center;
+            width: 120px;
+        }
+
+        .county-cuisine-label strong {
+            display: block;
+            color: #1d4ed8;
         }
 
         .panel {
@@ -324,6 +383,35 @@
                     <h3>Топ кухонь (bar)</h3>
                 </div>
                 <canvas id="barChart" class="sidebar-chart"></canvas>
+            </div>
+
+            <div class="card chart-card">
+                <div class="chart-actions">
+                    <h3>Популярность по районам</h3>
+                    <button id="loadCuisineAreasBtn">Загрузить</button>
+                </div>
+                <p class="hint">Сейчас анализируется: <strong id="currentCuisineAreaLabel">-</strong></p>
+                <p class="hint">Heatmap строится по конкретным заведениям выбранной кухни. График ниже показывает распределение по районам.</p>
+                <div class="status" id="cuisineAreasStatus"></div>
+                <div class="chart-placeholder" id="cuisineAreasPlaceholder">Выбери кухню и нажми «Загрузить».</div>
+                <div class="chart-shell area-chart-shell">
+                    <canvas id="cuisineAreasChart"></canvas>
+                </div>
+                <div class="area-list" id="cuisineAreasList"></div>
+            </div>
+
+            <div class="card">
+                <h3>Топ-кухня внутри районов</h3>
+                <div class="toggle">
+                    <input type="checkbox" id="showTopCuisineAreas" />
+                    <label for="showTopCuisineAreas">Показывать районы и подписи на карте</label>
+                </div>
+                <div class="toggle">
+                    <input type="checkbox" id="showTopCuisineLabels" checked />
+                    <label for="showTopCuisineLabels">Показывать подписи</label>
+                </div>
+                <p class="hint">Отдельный слой: контуры всех counties и подпись самой популярной кухни в районе.</p>
+                <div class="status" id="topCuisineAreasStatus"></div>
             </div>
         </section>
 
@@ -632,6 +720,14 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
 }).addTo(map);
 
 const cuisineSelect = document.getElementById('cuisineSelect');
+const loadCuisineAreasBtn = document.getElementById('loadCuisineAreasBtn');
+const currentCuisineAreaLabel = document.getElementById('currentCuisineAreaLabel');
+const showTopCuisineAreas = document.getElementById('showTopCuisineAreas');
+const showTopCuisineLabels = document.getElementById('showTopCuisineLabels');
+const topCuisineAreasStatus = document.getElementById('topCuisineAreasStatus');
+const cuisineAreasStatus = document.getElementById('cuisineAreasStatus');
+const cuisineAreasPlaceholder = document.getElementById('cuisineAreasPlaceholder');
+const cuisineAreasList = document.getElementById('cuisineAreasList');
 const showDensity = document.getElementById('showDensity');
 const showMarkers = document.getElementById('showMarkers');
 const showReviewMarkers = document.getElementById('showReviewMarkers');
@@ -699,6 +795,14 @@ let selectedBusiness = null;
 
 let donutChart = null;
 let barChart = null;
+let cuisineAreasChart = null;
+let cuisineAreaHeatLayer = null;
+let cuisineAreaMarkerLayer = null;
+let topCuisineCountyLayer = null;
+let topCuisineLabelLayer = null;
+let topCuisineAreasCache = null;
+let cuisineMarkerRequestId = 0;
+let activeCuisineHeatmap = null;
 let reviewsScatterChart = null;
 let reviewsCorrelationChart = null;
 let reviewsMapCorrelationChart = null;
@@ -728,21 +832,123 @@ function getBBox() {
 }
 
 async function loadDistribution() {
-    const response = await fetch(`${API_BASE}/api/analytics/cuisines/distribution?limit=20`);
-    const data = await response.json();
+    let data = [];
+
+    try {
+        const response = await fetch(`${API_BASE}/api/analytics/cuisines/distribution?limit=20`);
+        if (!response.ok) {
+            throw new Error(`distribution: ${response.status}`);
+        }
+        data = await response.json();
+        if (!Array.isArray(data)) {
+            throw new Error("distribution returned non-array data");
+        }
+    } catch (err) {
+        console.warn("Cuisine distribution failed.", err);
+        data = [];
+    }
 
     cuisineSelect.innerHTML = "";
+    const allOption = document.createElement("option");
+    allOption.value = "";
+    allOption.textContent = "All";
+    allOption.selected = true;
+    cuisineSelect.appendChild(allOption);
+
     data.forEach((row, idx) => {
         const option = document.createElement("option");
         option.value = row.cuisine;
         option.textContent = `${row.cuisine} (${row.business_count})`;
-        if (idx === 0) {
-            option.selected = true;
-        }
         cuisineSelect.appendChild(option);
     });
 
     updateCharts(data);
+    updateCurrentCuisineAreaLabel();
+}
+
+function renderBarChart(ctx, labels, values, options = {}) {
+    const tickFontSize = options.tickFontSize || 12;
+    const tooltipFontSize = options.tooltipFontSize || 12;
+    const tooltipTitleFontSize = options.tooltipTitleFontSize || tooltipFontSize;
+
+    return new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: options.label || '',
+                data: values,
+                backgroundColor: options.color || 'rgba(56, 189, 248, 0.85)',
+                borderRadius: 6,
+                maxBarThickness: options.maxBarThickness || 42
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: {
+                padding: {
+                    top: 8,
+                    right: 12,
+                    bottom: 8,
+                    left: 12
+                }
+            },
+            animation: {
+                duration: 800,
+                easing: 'easeOutQuart'
+            },
+            interaction: {
+                mode: 'index',
+                axis: 'x',
+                intersect: false
+            },
+            scales: {
+                x: { ticks: { display: false }, grid: { display: false } },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(148, 163, 184, 0.2)' },
+                    ticks: {
+                        color: '#475569',
+                        padding: 8,
+                        font: {
+                            size: tickFontSize,
+                            lineHeight: 1.35
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    enabled: true,
+                    mode: 'index',
+                    axis: 'x',
+                    intersect: false,
+                    position: 'nearest',
+                    displayColors: false,
+                    titleSpacing: 4,
+                    bodySpacing: 4,
+                    padding: 10,
+                    caretPadding: 8,
+                    titleFont: {
+                        size: tooltipTitleFontSize,
+                        lineHeight: 1.35,
+                        weight: '700'
+                    },
+                    bodyFont: {
+                        size: tooltipFontSize,
+                        lineHeight: 1.35
+                    },
+                    callbacks: {
+                        title: items => labels[items[0].dataIndex] || '',
+                        label: item => `${options.valueLabel || 'Заведений'}: ${item.parsed.y}`
+                    }
+                }
+            },
+            onClick: options.onClick || undefined
+        }
+    });
 }
 
 function updateCharts(data) {
@@ -785,32 +991,8 @@ function updateCharts(data) {
         }
     });
 
-    barChart = new Chart(barCtx, {
-        type: 'bar',
-        data: {
-            labels,
-            datasets: [{
-                data: values,
-                backgroundColor: 'rgba(56, 189, 248, 0.85)',
-                borderRadius: 6
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: {
-                duration: 800,
-                easing: 'easeOutQuart'
-            },
-            scales: {
-                x: { ticks: { display: false }, grid: { display: false } },
-                y: { beginAtZero: true, grid: { color: 'rgba(148, 163, 184, 0.2)' } }
-            },
-            plugins: {
-                legend: { display: false }
-            },
-            onClick: (_evt, items) => handleChartClick(items, labels)
-        }
+    barChart = renderBarChart(barCtx, labels, values, {
+        onClick: (_evt, items) => handleChartClick(items, labels)
     });
 }
 
@@ -827,6 +1009,321 @@ function handleChartClick(items, labels) {
 
     cuisineSelect.value = cuisine;
     refreshMap();
+}
+
+function setCuisineAreasStatus(message, isError = false) {
+    if (!cuisineAreasStatus) {
+        return;
+    }
+    cuisineAreasStatus.textContent = message;
+    cuisineAreasStatus.style.color = isError ? "#dc2626" : "#1e293b";
+}
+
+function setTopCuisineAreasStatus(message, isError = false) {
+    if (!topCuisineAreasStatus) {
+        return;
+    }
+    topCuisineAreasStatus.textContent = message;
+    topCuisineAreasStatus.style.color = isError ? "#dc2626" : "#1e293b";
+}
+
+function updateCurrentCuisineAreaLabel() {
+    if (!currentCuisineAreaLabel) {
+        return;
+    }
+    currentCuisineAreaLabel.textContent = cuisineSelect.value || "-";
+}
+
+function clearCuisineAreaLayers() {
+    if (cuisineAreaHeatLayer) {
+        map.removeLayer(cuisineAreaHeatLayer);
+        cuisineAreaHeatLayer = null;
+    }
+    if (cuisineAreaMarkerLayer) {
+        map.removeLayer(cuisineAreaMarkerLayer);
+        cuisineAreaMarkerLayer = null;
+    }
+    activeCuisineHeatmap = null;
+}
+
+function clearTopCuisineAreaLayers() {
+    if (topCuisineCountyLayer) {
+        map.removeLayer(topCuisineCountyLayer);
+        topCuisineCountyLayer = null;
+    }
+    if (topCuisineLabelLayer) {
+        map.removeLayer(topCuisineLabelLayer);
+        topCuisineLabelLayer = null;
+    }
+}
+
+function renderTopCuisineLabels(topItems) {
+    if (topCuisineLabelLayer) {
+        map.removeLayer(topCuisineLabelLayer);
+        topCuisineLabelLayer = null;
+    }
+    if (!showTopCuisineLabels || !showTopCuisineLabels.checked) {
+        return;
+    }
+
+    topCuisineLabelLayer = L.layerGroup();
+    (topItems || []).forEach(item => {
+        if (item.lat === null || item.lat === undefined || item.lon === null || item.lon === undefined) {
+            return;
+        }
+        const marker = L.marker([item.lat, item.lon], {
+            interactive: false,
+            icon: L.divIcon({
+                className: '',
+                html: `<div class="county-cuisine-label"><strong>${item.cuisine}</strong>${item.area_name}</div>`,
+                iconSize: [120, 40],
+                iconAnchor: [60, 20]
+            })
+        });
+        topCuisineLabelLayer.addLayer(marker);
+    });
+    topCuisineLabelLayer.addTo(map);
+}
+
+function renderTopCuisineAreaLayers(topItems, borders) {
+    const topByGeoid = new Map((topItems || []).map(item => [item.geoid, item]));
+
+    clearTopCuisineAreaLayers();
+
+    topCuisineCountyLayer = L.geoJSON(borders.features || [], {
+        style: feature => {
+            const item = topByGeoid.get(feature.properties?.geoid);
+            return {
+                color: '#1d4ed8',
+                weight: item ? 2.4 : 1.4,
+                fillColor: '#38bdf8',
+                fillOpacity: item ? 0.08 : 0.025,
+                opacity: item ? 0.9 : 0.45
+            };
+        },
+        onEachFeature: (feature, layer) => {
+            const props = feature.properties || {};
+            const item = topByGeoid.get(props.geoid);
+            layer.bindPopup(`
+                <strong>${props.county_name || item?.area_name || '-'}, ${props.state || item?.state || '-'}</strong><br/>
+                ${item ? `Топ-кухня: ${item.cuisine}<br/>Заведений: ${item.business_count}` : 'Нет данных по кухням'}
+            `);
+        }
+    }).addTo(map);
+
+    renderTopCuisineLabels(topItems);
+}
+
+async function renderCuisineBusinessHeatmap(cuisine) {
+    if (!cuisine) {
+        clearCuisineAreaLayers();
+        return;
+    }
+
+    const bbox = getBBox();
+    const url = new URL(`${API_BASE}/api/analytics/cuisines/map`);
+    url.searchParams.set("bbox", bbox);
+    url.searchParams.set("limit", "20000");
+    url.searchParams.set("cuisine", cuisine);
+
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`cuisine map: ${response.status}`);
+    }
+    const data = await response.json();
+    if (!Array.isArray(data)) {
+        throw new Error("cuisine map returned non-array data");
+    }
+
+    if (cuisineAreaHeatLayer) {
+        map.removeLayer(cuisineAreaHeatLayer);
+        cuisineAreaHeatLayer = null;
+    }
+
+    const heatData = data
+        .filter(item => item.lat !== null && item.lat !== undefined && item.lon !== null && item.lon !== undefined)
+        .map(item => [Number(item.lat), Number(item.lon), 1]);
+
+    if (!heatData.length) {
+        return;
+    }
+
+    cuisineAreaHeatLayer = L.heatLayer(heatData, {
+        radius: 32,
+        blur: 22,
+        maxZoom: 17,
+        minOpacity: 0.28
+    }).addTo(map);
+    activeCuisineHeatmap = cuisine;
+}
+
+function renderCuisineAreas(items) {
+    updateCurrentCuisineAreaLabel();
+    const valid = (items || [])
+        .filter(item => item.lat !== null && item.lat !== undefined && item.lon !== null && item.lon !== undefined);
+
+    if (cuisineAreasPlaceholder) {
+        cuisineAreasPlaceholder.style.display = valid.length ? 'none' : 'block';
+    }
+
+    if (cuisineAreasList) {
+        cuisineAreasList.innerHTML = "";
+        valid.slice(0, 8).forEach(item => {
+            const row = document.createElement("div");
+            row.className = "area-row";
+            row.innerHTML = `<span>${item.area_name}, ${item.state}</span><strong>${item.business_count}</strong>`;
+            cuisineAreasList.appendChild(row);
+        });
+    }
+
+    if (cuisineAreasChart) {
+        cuisineAreasChart.destroy();
+    }
+
+    const labels = valid.slice(0, 12).map(item => `${item.area_name}, ${item.state}`);
+    const values = valid.slice(0, 12).map(item => Number(item.business_count || 0));
+    const ctx = document.getElementById('cuisineAreasChart');
+    cuisineAreasChart = renderBarChart(ctx, labels, values, {
+        label: cuisineSelect.value,
+        color: 'rgba(37, 99, 235, 0.78)',
+        tickFontSize: 14,
+        tooltipFontSize: 14,
+        tooltipTitleFontSize: 14,
+        maxBarThickness: 56
+    });
+    requestAnimationFrame(() => cuisineAreasChart?.resize());
+
+    if (cuisineAreaMarkerLayer) {
+        map.removeLayer(cuisineAreaMarkerLayer);
+        cuisineAreaMarkerLayer = null;
+    }
+}
+
+async function loadTopCuisineAreas() {
+    if (!showTopCuisineAreas || !showTopCuisineAreas.checked) {
+        clearTopCuisineAreaLayers();
+        setTopCuisineAreasStatus("");
+        return;
+    }
+
+    if (topCuisineAreasCache) {
+        renderTopCuisineAreaLayers(topCuisineAreasCache.topItems, topCuisineAreasCache.borders);
+        setTopCuisineAreasStatus(`Показано районов: ${(topCuisineAreasCache.borders.features || []).length}. Подписей с топ-кухней: ${topCuisineAreasCache.topItems.length}.`, false);
+        return;
+    }
+
+    try {
+        setTopCuisineAreasStatus("Загружаем районы и топ-кухни...", false);
+
+        const topUrl = new URL(`${API_BASE}/api/analytics/cuisines/area-top`);
+        topUrl.searchParams.set("limit", "2000");
+        const bordersUrl = new URL(`${API_BASE}/counties/borders`);
+        bordersUrl.searchParams.set("simplify", "0.001");
+
+        const [topResponse, bordersResponse] = await Promise.all([
+            fetch(topUrl),
+            fetch(bordersUrl)
+        ]);
+
+        if (!topResponse.ok) {
+            throw new Error(`area-top: ${topResponse.status}`);
+        }
+        if (!bordersResponse.ok) {
+            throw new Error(`counties/borders: ${bordersResponse.status}`);
+        }
+
+        const topItems = await topResponse.json();
+        const borders = await bordersResponse.json();
+        topCuisineAreasCache = { topItems: topItems || [], borders };
+        renderTopCuisineAreaLayers(topCuisineAreasCache.topItems, topCuisineAreasCache.borders);
+        setTopCuisineAreasStatus(`Показано районов: ${(borders.features || []).length}. Подписей с топ-кухней: ${(topItems || []).length}.`, false);
+        return;
+
+        const topByGeoid = new Map((topItems || []).map(item => [item.geoid, item]));
+
+        clearTopCuisineAreaLayers();
+
+        topCuisineCountyLayer = L.geoJSON(borders.features || [], {
+            style: feature => {
+                const item = topByGeoid.get(feature.properties?.geoid);
+                return {
+                    color: '#1d4ed8',
+                    weight: item ? 2.4 : 1.4,
+                    fillColor: '#38bdf8',
+                    fillOpacity: item ? 0.08 : 0.025,
+                    opacity: item ? 0.9 : 0.45
+                };
+            },
+            onEachFeature: (feature, layer) => {
+                const props = feature.properties || {};
+                const item = topByGeoid.get(props.geoid);
+                layer.bindPopup(`
+                    <strong>${props.county_name || item?.area_name || '-'}, ${props.state || item?.state || '-'}</strong><br/>
+                    ${item ? `Топ-кухня: ${item.cuisine}<br/>Заведений: ${item.business_count}` : 'Нет данных по кухням'}
+                `);
+            }
+        }).addTo(map);
+
+        topCuisineLabelLayer = L.layerGroup();
+        (topItems || []).forEach(item => {
+            if (item.lat === null || item.lat === undefined || item.lon === null || item.lon === undefined) {
+                return;
+            }
+            const marker = L.marker([item.lat, item.lon], {
+                interactive: false,
+                icon: L.divIcon({
+                    className: '',
+                    html: `<div class="county-cuisine-label"><strong>${item.cuisine}</strong>${item.area_name}</div>`,
+                    iconSize: [120, 40],
+                    iconAnchor: [60, 20]
+                })
+            });
+            topCuisineLabelLayer.addLayer(marker);
+        });
+        topCuisineLabelLayer.addTo(map);
+
+        setTopCuisineAreasStatus(`Показано районов: ${(borders.features || []).length}. Подписей с топ-кухней: ${topItems.length}.`, false);
+    } catch (err) {
+        clearTopCuisineAreaLayers();
+        setTopCuisineAreasStatus(`Ошибка топ-кухонь: ${err.message}`, true);
+        if (showTopCuisineAreas) {
+            showTopCuisineAreas.checked = false;
+        }
+    }
+}
+
+async function loadCuisineAreas() {
+    const cuisine = cuisineSelect.value;
+    if (!cuisine) {
+        clearCuisineAreaLayers();
+        if (cuisineAreasPlaceholder) {
+            cuisineAreasPlaceholder.style.display = 'block';
+        }
+        setCuisineAreasStatus("Для популярности по районам выбери конкретную кухню, не All.", true);
+        return;
+    }
+
+    try {
+        updateCurrentCuisineAreaLabel();
+        setCuisineAreasStatus("Загружаем районы...", false);
+        const url = new URL(`${API_BASE}/api/analytics/cuisines/by-area`);
+        url.searchParams.set("cuisine", cuisine);
+        url.searchParams.set("limit", "250");
+
+        const [response] = await Promise.all([
+            fetch(url),
+            renderCuisineBusinessHeatmap(cuisine)
+        ]);
+        if (!response.ok) {
+            throw new Error(`by-area: ${response.status}`);
+        }
+        const data = await response.json();
+        renderCuisineAreas(data);
+        setCuisineAreasStatus(`Готово: ${data.length} районов.`, false);
+    } catch (err) {
+        clearCuisineAreaLayers();
+        setCuisineAreasStatus(`Ошибка районов: ${err.message}`, true);
+    }
 }
 
 function buildReviewParams() {
@@ -2006,6 +2503,8 @@ async function loadDensityHeatmap() {
 }
 
 async function loadMarkers() {
+    const requestId = ++cuisineMarkerRequestId;
+
     if (!showMarkers.checked) {
         if (markerLayer) {
             map.removeLayer(markerLayer);
@@ -2028,13 +2527,17 @@ async function loadMarkers() {
 
     const url = new URL(`${API_BASE}/api/analytics/cuisines/map`);
     url.searchParams.set("bbox", bbox);
-    url.searchParams.set("limit", "800");
+    url.searchParams.set("limit", cuisine ? "800" : "20000");
     if (cuisine) {
         url.searchParams.set("cuisine", cuisine);
     }
 
     const response = await fetch(url);
     const data = await response.json();
+
+    if (requestId !== cuisineMarkerRequestId) {
+        return;
+    }
 
     if (markerLayer) {
         map.removeLayer(markerLayer);
@@ -2068,11 +2571,13 @@ async function loadMarkers() {
 }
 
 async function refreshMap() {
+    const cuisineHeatmapToRefresh = activeCuisineHeatmap;
     // Load density, cuisine markers and base (gray) review markers in parallel
     await Promise.all([
         loadDensityHeatmap(),
         loadMarkers(),
-        loadReviewBaseMarkers()
+        loadReviewBaseMarkers(),
+        cuisineHeatmapToRefresh ? renderCuisineBusinessHeatmap(cuisineHeatmapToRefresh) : Promise.resolve()
     ]);
     // Render computed review markers on top of base markers
     renderReviewMarkers(reviewsMetricsCache);
@@ -2088,7 +2593,36 @@ map.on("click", () => {
 
 showDensity.addEventListener("change", refreshMap);
 showMarkers.addEventListener("change", refreshMap);
-cuisineSelect.addEventListener("change", refreshMap);
+cuisineSelect.addEventListener("change", () => {
+    clearCuisineAreaLayers();
+    updateCurrentCuisineAreaLabel();
+    if (cuisineAreasPlaceholder) {
+        cuisineAreasPlaceholder.style.display = 'block';
+    }
+    if (cuisineAreasList) {
+        cuisineAreasList.innerHTML = "";
+    }
+    setCuisineAreasStatus("");
+    refreshMap();
+});
+if (loadCuisineAreasBtn) {
+    loadCuisineAreasBtn.addEventListener("click", loadCuisineAreas);
+}
+if (showTopCuisineAreas) {
+    showTopCuisineAreas.addEventListener("change", loadTopCuisineAreas);
+}
+if (showTopCuisineLabels) {
+    showTopCuisineLabels.addEventListener("change", () => {
+        if (!showTopCuisineAreas || !showTopCuisineAreas.checked || !topCuisineAreasCache) {
+            if (topCuisineLabelLayer) {
+                map.removeLayer(topCuisineLabelLayer);
+                topCuisineLabelLayer = null;
+            }
+            return;
+        }
+        renderTopCuisineLabels(topCuisineAreasCache.topItems);
+    });
+}
 loadReviewsBtn.addEventListener("click", loadReviewAnalytics);
 mapCorrelationBtn.addEventListener("click", () => {
     const businessId = selectedBusiness?.business_id || selectedBusiness?.businessId || corrBusinessId.value.trim();
@@ -2186,6 +2720,14 @@ tabs.forEach(tab => {
             clearSelectedBusiness();
         }
 
+        if (panelId !== 'cuisinePanel') {
+            clearCuisineAreaLayers();
+            clearTopCuisineAreaLayers();
+            if (showTopCuisineAreas) {
+                showTopCuisineAreas.checked = false;
+            }
+        }
+
         refreshMap();
     });
 });
@@ -2194,3 +2736,4 @@ tabs.forEach(tab => {
 
 </body>
 </html>
+
