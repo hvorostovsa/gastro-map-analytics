@@ -6,8 +6,10 @@ from utils import batch_iter
 
 TARGET_STATE_FIPS = {
     'CA': '06', 'NV': '32', 'ID': '16', 'AZ': '04', 'LA': '22',
-    'FL': '12', 'MO': '29', 'TN': '47', 'IN': '18', 'PA': '42'
+    'FL': '12', 'MO': '29', 'TN': '47', 'IN': '18', 'PA': '42',
+    'NJ': '34', 'GA': '13', 'IL': '17', 'DE': '10'
 }
+print(f"Target states: {', '.join(TARGET_STATE_FIPS.keys())} (FIPS: {', '.join(TARGET_STATE_FIPS.values())})")
 
 INSERT_COUNTY = text("""
 INSERT INTO counties (geoid, name, state, geom)
@@ -60,7 +62,3 @@ def load_counties(shapefile_path):
         print("\nLoaded counts by state:")
         for row in result:
             print(f"  {row[0]}: {row[1]} counties")
-
-
-if __name__ == "__main__":
-    load_counties("tl_2025_us_county.shp")
