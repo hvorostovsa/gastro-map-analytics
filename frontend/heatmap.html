@@ -922,10 +922,6 @@ function applyFeatureLineVisibility(chart) {
     };
 
     chart.data.datasets.forEach((dataset, idx) => {
-        if (dataset.label === 'История (checkins)') {
-            chart.setDatasetVisibility(idx, showFeatureCheckins ? showFeatureCheckins.checked : true);
-            return;
-        }
         if (Object.prototype.hasOwnProperty.call(visibilityByLabel, dataset.label)) {
             chart.setDatasetVisibility(idx, visibilityByLabel[dataset.label]);
         }
@@ -934,9 +930,7 @@ function applyFeatureLineVisibility(chart) {
 }
 
 function applyAllFeatureLineVisibility() {
-    applyFeatureLineVisibility(forecastMainChart);
     applyFeatureLineVisibility(forecastFeaturesChart);
-    dualForecastCharts.forEach(chart => applyFeatureLineVisibility(chart));
 }
 
 function renderForecastMain(payload) {
@@ -1097,8 +1091,6 @@ function renderForecastMain(payload) {
     if (forecastMainPlaceholder) {
         forecastMainPlaceholder.style.display = 'none';
     }
-
-    applyFeatureLineVisibility(forecastMainChart);
 }
 
 function renderForecastFeatures(payload) {
@@ -1212,15 +1204,6 @@ function renderDualForecastChart(index, payload, businessId) {
         const found = actual.find(p => p.date === label);
         return found ? found.actual : null;
     });
-    const reviewValues = labels.map(label => {
-        const found = history.find(p => p.date === label);
-        return found ? found.review_count : null;
-    });
-    const avgStarsValues = labels.map(label => {
-        const found = history.find(p => p.date === label);
-        return found ? found.avg_review_stars : null;
-    });
-
     if (dualForecastCharts[index]) {
         dualForecastCharts[index].destroy();
     }
@@ -1264,28 +1247,6 @@ function renderDualForecastChart(index, payload, businessId) {
                     spanGaps: true,
                     pointRadius: 2,
                     yAxisID: 'y'
-                },
-                {
-                    label: 'Review count',
-                    data: reviewValues,
-                    borderColor: '#64748b',
-                    backgroundColor: 'rgba(100, 116, 139, 0.16)',
-                    borderWidth: 1,
-                    tension: 0.2,
-                    spanGaps: true,
-                    pointRadius: 0,
-                    yAxisID: 'yReviews'
-                },
-                {
-                    label: 'Avg review stars',
-                    data: avgStarsValues,
-                    borderColor: '#f59e0b',
-                    backgroundColor: 'rgba(245, 158, 11, 0.16)',
-                    borderWidth: 1,
-                    tension: 0.2,
-                    spanGaps: true,
-                    pointRadius: 0,
-                    yAxisID: 'yStars'
                 }
             ]
         },
@@ -1305,9 +1266,7 @@ function renderDualForecastChart(index, payload, businessId) {
             },
             scales: {
                 x: { ticks: { maxRotation: 0, maxTicksLimit: 5 }, grid: { display: false } },
-                y: { beginAtZero: true, position: 'left', grid: { color: 'rgba(148, 163, 184, 0.2)' } },
-                yReviews: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } },
-                yStars: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } }
+                y: { beginAtZero: true, position: 'left', grid: { color: 'rgba(148, 163, 184, 0.2)' } }
             }
         }
     });
@@ -1315,7 +1274,6 @@ function renderDualForecastChart(index, payload, businessId) {
     if (placeholder) {
         placeholder.style.display = 'none';
     }
-    applyFeatureLineVisibility(dualForecastCharts[index]);
 }
 
 async function loadForecast() {
@@ -2004,19 +1962,39 @@ async function loadDensityHeatmap() {
     }
 
     const bbox = getBBox();
-    const zoom = map.getZoom();
+    let heatData = [];
 
-    const response = await fetch(`${API_BASE}/geo/heatmap?bbox=${bbox}&zoom=${zoom}`);
-    const data = await response.json();
+    const url = new URL(`${API_BASE}/api/analytics/cuisines/map`);
+    url.searchParams.set("bbox", bbox);
+    url.searchParams.set("limit", "2000");
 
-    const heatData = data.map(p => [
-        Number(p.lat),
-        Number(p.lon),
-        Number(p.intensity)
-    ]);
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`density points: ${response.status}`);
+        }
+        const data = await response.json();
+        if (!Array.isArray(data)) {
+            throw new Error("density points returned non-array data");
+        }
+        heatData = data
+            .filter(p => p.lat !== null && p.lat !== undefined && p.lon !== null && p.lon !== undefined)
+            .map(p => [
+                Number(p.lat),
+                Number(p.lon),
+                1
+            ]);
+    } catch (err) {
+        console.warn("Density heatmap failed.", err);
+    }
 
     if (densityLayer) {
         map.removeLayer(densityLayer);
+        densityLayer = null;
+    }
+
+    if (!heatData.length) {
+        return;
     }
 
     densityLayer = L.heatLayer(heatData, {
