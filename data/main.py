@@ -12,8 +12,7 @@ def main():
     parser.add_argument("--business", action="store_true")
     parser.add_argument("--review", action="store_true")
     parser.add_argument("--checkin", action="store_true")
-    parser.add_argument("--districts", action="store_true")
-
+    
     parser.add_argument("--all", action="store_true")
 
     parser.add_argument("--path", default="/data")
