@@ -8,7 +8,7 @@ router = APIRouter()
 
 @router.get("/counties/borders")
 def get_county_borders(
-    state: Optional[str] = Query(None, description="State abbreviation (CA, NV, ID, AZ, LA, FL, MO, TN, IN, PA)"),
+    state: Optional[str] = Query(None),
     county_name: Optional[str] = Query(None, description="County name (partial match)"),
     simplify: float = Query(0.001, description="Simplification tolerance (0 = no simplification)")
 ):
@@ -29,17 +29,12 @@ def get_county_borders(
             END AS geojson,
             ST_Area(geom) / 1000000 AS area_sq_km
         FROM counties
-        WHERE state IN ('CA', 'NV', 'ID', 'AZ', 'LA', 'FL', 'MO', 'TN', 'IN', 'PA')
     """
     
     params = {"simplify": simplify}
     
     if state:
         state_upper = state.upper()
-        valid_states = ['CA', 'NV', 'ID', 'AZ', 'LA', 'FL', 'MO', 'TN', 'IN', 'PA']
-        if state_upper not in valid_states:
-            raise HTTPException(status_code=400, detail=f"State must be one of: {', '.join(valid_states)}")
-        sql += " AND state = %(state)s"
         params["state"] = state_upper
     
     if county_name:
@@ -57,7 +52,6 @@ def get_county_borders(
             "total_count": 0
         }
     
-    # Format as GeoJSON
     features = []
     for row in rows:
         geojson_data = json.loads(row['geojson']) if row['geojson'] else None
@@ -90,7 +84,6 @@ def get_counties_bbox(state: Optional[str] = Query(None)):
             MAX(ST_XMax(geom::geometry)) AS max_lon,
             MAX(ST_YMax(geom::geometry)) AS max_lat
         FROM counties
-        WHERE state IN ('CA', 'NV', 'ID', 'AZ', 'LA', 'FL', 'MO', 'TN', 'IN', 'PA')
     """
     
     params = {}

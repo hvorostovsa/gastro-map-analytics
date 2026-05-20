@@ -331,6 +331,26 @@
             font-size: 12px;
             color: #64748b;
         }
+
+        .county-boundary {
+            stroke: #6b7280;
+            stroke-width: 2;
+            stroke-opacity: 0.7;
+            fill: #9ca3af;
+            fill-opacity: 0.15;
+            transition: fill-opacity 0.2s;
+        }
+
+        .county-boundary:hover {
+            fill-opacity: 0.35;
+            stroke-width: 3;
+        }
+
+        .legend-county {
+            background: #9ca3af;
+            border: 2px solid #6b7280;
+        }
+
     </style>
 </head>
 <body>
@@ -346,7 +366,6 @@
             <button class="tab" data-panel="forecastPanel">Прогноз</button>
             <button class="tab" data-panel="marketPanel">Рынок</button>
         </div>
-
         <section class="panel active" id="densityPanel">
             <div class="card">
                 <h3>Плотность заведений</h3>
@@ -354,9 +373,14 @@
                     <input type="checkbox" id="showDensity" checked />
                     <label for="showDensity">Показывать плотность</label>
                 </div>
-                <p class="hint">Этот слой показывает распределение всех ресторанов в текущем bbox.</p>
+                <div class="toggle">
+                    <input type="checkbox" id="showCountyBoundaries" />
+                    <label for="showCountyBoundaries">Показывать границы округов</label>
+                </div>
+                <p class="hint">Границы округов (counties) с возможностью клика для просмотра информации.</p>
             </div>
         </section>
+
 
         <section class="panel" id="cuisinePanel">
             <div class="card">
@@ -711,7 +735,7 @@
 <script>
 const API_BASE = "http://127.0.0.1:8000";
 
-const map = L.map('map').setView([34.05, -118.25], 12);
+const map = L.map('map').setView([39.9526, -75.1652], 12);
 
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     subdomains: 'abcd',
@@ -729,6 +753,7 @@ const cuisineAreasStatus = document.getElementById('cuisineAreasStatus');
 const cuisineAreasPlaceholder = document.getElementById('cuisineAreasPlaceholder');
 const cuisineAreasList = document.getElementById('cuisineAreasList');
 const showDensity = document.getElementById('showDensity');
+const showCountyBoundaries = document.getElementById('showCountyBoundaries');
 const showMarkers = document.getElementById('showMarkers');
 const showReviewMarkers = document.getElementById('showReviewMarkers');
 const showReviewBase = document.getElementById('showReviewBase');
@@ -789,6 +814,7 @@ let reviewsSelectedMarker = null;
 let reviewsBaseMarkersById = new Map();
 let reviewsComputedMarkersById = new Map();
 let selectedBusinessId = null;
+let countyLayer = null;
 
 let reviewsMetricsCache = [];
 let selectedBusiness = null;
@@ -2460,7 +2486,6 @@ async function loadDensityHeatmap() {
 
     const bbox = getBBox();
     let heatData = [];
-
     const url = new URL(`${API_BASE}/api/analytics/cuisines/map`);
     url.searchParams.set("bbox", bbox);
     url.searchParams.set("limit", "2000");
@@ -2500,6 +2525,77 @@ async function loadDensityHeatmap() {
         maxZoom: 17,
         minOpacity: 0.4
     }).addTo(map);
+}
+
+async function loadCountyBoundaries() {
+    if (!showCountyBoundaries.checked) {
+        if (countyLayer) {
+            map.removeLayer(countyLayer);
+            countyLayer = null;
+        }
+        return;
+    }
+
+    const activePanel = document.querySelector('.panel.active');
+    if (activePanel && activePanel.id !== 'densityPanel') {
+        if (countyLayer) {
+            map.removeLayer(countyLayer);
+            countyLayer = null;
+        }
+        return;
+    }
+
+    const url = new URL(`${API_BASE}/counties/borders`);
+    url.searchParams.set('simplify', '0.001');
+
+    try {
+        const resp = await fetch(url.toString());
+        if (!resp.ok) {
+            throw new Error(`counties/borders: ${resp.status}`);
+        }
+        const geo = await resp.json();
+
+        if (countyLayer) {
+            map.removeLayer(countyLayer);
+            countyLayer = null;
+        }
+
+        function styleFeature(feature) {
+            return {
+                color: '#6b7280',
+                weight: 2,
+                opacity: 0.8,
+                fillColor: '#9ca3af',
+                fillOpacity: 0.12
+            };
+        }
+
+        function onEachFeature(feature, layer) {
+            const props = feature.properties || {};
+            const name = props.county_name || props.name || 'Unknown';
+            const state = props.state || '';
+            const area = props.area_sq_km ? `${props.area_sq_km} km²` : '';
+            layer.bindPopup(`<strong>${name}</strong><br/>${state}<br/>${area}`);
+            layer.on('mouseover', function () {
+                this.setStyle({ fillOpacity: 0.28, weight: 3 });
+            });
+            layer.on('mouseout', function () {
+                try { this.setStyle(styleFeature(feature)); } catch (e) { /* ignore */ }
+            });
+        }
+
+        countyLayer = L.geoJSON(geo, {
+            style: styleFeature,
+            onEachFeature: onEachFeature
+        }).addTo(map);
+
+    } catch (err) {
+        console.error('Failed to load county boundaries', err);
+        if (countyLayer) {
+            try { map.removeLayer(countyLayer); } catch (e) { /* ignore */ }
+            countyLayer = null;
+        }
+    }
 }
 
 async function loadMarkers() {
@@ -2575,6 +2671,7 @@ async function refreshMap() {
     // Load density, cuisine markers and base (gray) review markers in parallel
     await Promise.all([
         loadDensityHeatmap(),
+        loadCountyBoundaries(),
         loadMarkers(),
         loadReviewBaseMarkers(),
         cuisineHeatmapToRefresh ? renderCuisineBusinessHeatmap(cuisineHeatmapToRefresh) : Promise.resolve()
@@ -2593,6 +2690,7 @@ map.on("click", () => {
 
 showDensity.addEventListener("change", refreshMap);
 showMarkers.addEventListener("change", refreshMap);
+showCountyBoundaries.addEventListener("change", refreshMap);
 cuisineSelect.addEventListener("change", () => {
     clearCuisineAreaLayers();
     updateCurrentCuisineAreaLabel();
