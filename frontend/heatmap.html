@@ -278,6 +278,14 @@
             margin-bottom: 6px;
         }
 
+        .ranking-chart-shell.compact {
+            height: 340px;
+        }
+
+        .ranking-chart-shell.expanded {
+            height: 340px;
+        }
+
         .topn-chart-summary {
             margin: 0 0 8px;
         }
@@ -2293,6 +2301,13 @@ function renderRankingReviewChart({
 
     const labels = rankItems.map(item => item.name || getReviewBusinessId(item) || 'Unknown');
     const values = rankItems.map(item => getMetricValue(item, metric));
+    const chartShell = chartCanvas.closest('.ranking-chart-shell');
+    const chartHeight = Math.max(340, 130 + (rankItems.length * 26));
+    if (chartShell) {
+        chartShell.style.height = `${chartHeight}px`;
+        chartShell.classList.toggle('compact', rankItems.length <= 10);
+        chartShell.classList.toggle('expanded', rankItems.length > 10);
+    }
 
     if (summaryElement) {
         summaryElement.textContent = titleLabel.replace('{count}', String(rankItems.length)).replace('{metric}', metric);
@@ -2352,7 +2367,10 @@ function renderRankingReviewChart({
                     grid: { display: false },
                     offset: true,
                     ticks: {
-                        padding: 8
+                        padding: 8,
+                        font: {
+                            size: rankItems.length > 10 ? 11 : 12
+                        }
                     }
                 }
             },
