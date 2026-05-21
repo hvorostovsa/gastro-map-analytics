@@ -1,0 +1,1636 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Market Forecast Atlas</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg: #f8fafc;
+            --bg-2: #eef2ff;
+            --panel: rgba(255, 255, 255, 0.94);
+            --panel-border: rgba(148, 163, 184, 0.22);
+            --text: #0f172a;
+            --muted: #64748b;
+            --accent: #2563eb;
+            --accent-2: #38bdf8;
+            --good: #16a34a;
+            --bad: #dc2626;
+            --shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top left, rgba(56, 189, 248, 0.14), transparent 32%),
+                radial-gradient(circle at bottom right, rgba(37, 99, 235, 0.12), transparent 28%),
+                linear-gradient(135deg, var(--bg), var(--bg-2));
+        }
+
+        .shell {
+            display: grid;
+            grid-template-columns: 420px minmax(0, 1fr);
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            padding: 18px;
+            border-right: 1px solid rgba(148, 163, 184, 0.18);
+            background: rgba(255, 255, 255, 0.82);
+            backdrop-filter: blur(14px);
+            overflow-y: auto;
+        }
+
+        .brand {
+            display: grid;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            width: fit-content;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(37, 99, 235, 0.08);
+            color: #1d4ed8;
+            border: 1px solid rgba(37, 99, 235, 0.14);
+            font-size: 12px;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            margin: 0;
+            line-height: 1.02;
+            font-size: 30px;
+            letter-spacing: -0.03em;
+        }
+
+        .subtitle {
+            margin: 0;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            padding: 14px;
+            margin-bottom: 14px;
+        }
+
+        .card h2,
+        .card h3 {
+            margin: 0 0 10px;
+            font-size: 16px;
+            letter-spacing: -0.02em;
+        }
+
+        .hint {
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.45;
+            margin: 0;
+        }
+
+        .controls {
+            display: grid;
+            gap: 10px;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .field {
+            display: grid;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 12px;
+            color: #334155;
+        }
+
+        input,
+        select,
+        button {
+            font: inherit;
+        }
+
+        input,
+        select {
+            width: 100%;
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.32);
+            background: #f8fafc;
+            color: var(--text);
+            padding: 10px 12px;
+            outline: none;
+        }
+
+        input:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        button {
+            border: 0;
+            border-radius: 12px;
+            padding: 11px 14px;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+        }
+
+        button.primary {
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            color: #ffffff;
+            font-weight: 700;
+            box-shadow: 0 12px 24px rgba(37, 99, 235, 0.24);
+        }
+
+        button.ghost {
+            background: #ffffff;
+            color: #0f172a;
+            border: 1px solid rgba(148, 163, 184, 0.22);
+        }
+
+        .status {
+            font-size: 12px;
+            color: var(--muted);
+            min-height: 18px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .stat {
+            background: #ffffff;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 16px;
+            padding: 12px;
+            min-height: 92px;
+        }
+
+        .stat .value {
+            display: block;
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            color: #0f172a;
+        }
+
+        .stat .label {
+            display: block;
+            margin-top: 6px;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.35;
+        }
+
+        .state-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .chip {
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            background: #ffffff;
+            color: var(--text);
+            border-radius: 999px;
+            padding: 8px 11px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .chip.active {
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(56, 189, 248, 0.18));
+            border-color: rgba(37, 99, 235, 0.22);
+        }
+
+        .insight {
+            border-radius: 16px;
+            padding: 12px;
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(245, 158, 11, 0.08));
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            color: #0f172a;
+            line-height: 1.5;
+            font-size: 13px;
+        }
+
+        .insight strong {
+            color: #1d4ed8;
+        }
+
+        .chart-shell {
+            height: 290px;
+            position: relative;
+            background: #ffffff;
+            border-radius: 18px;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            overflow: hidden;
+        }
+
+        .chart-shell canvas {
+            width: 100% !important;
+            height: 100% !important;
+            display: block;
+        }
+
+        .ranking {
+            display: grid;
+            gap: 8px;
+        }
+
+        .ranking-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 12px;
+            align-items: center;
+            padding: 10px 12px;
+            border-radius: 14px;
+            background: #ffffff;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+        }
+
+        .ranking-row.top {
+            border-color: rgba(34, 197, 94, 0.28);
+            box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.12);
+        }
+
+        .ranking-row.bottom {
+            border-color: rgba(239, 68, 68, 0.28);
+            box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.12);
+        }
+
+        .county-name {
+            font-weight: 700;
+            line-height: 1.35;
+            color: #0f172a;
+        }
+
+        .county-meta {
+            color: var(--muted);
+            font-size: 12px;
+            margin-top: 3px;
+        }
+
+        .score-badge {
+            min-width: 64px;
+            text-align: center;
+            border-radius: 999px;
+            padding: 7px 10px;
+            font-size: 13px;
+            font-weight: 800;
+            background: rgba(37, 99, 235, 0.1);
+            color: #1d4ed8;
+        }
+
+        .score-badge.good { background: rgba(34, 197, 94, 0.14); color: #166534; }
+        .score-badge.bad { background: rgba(239, 68, 68, 0.14); color: #991b1b; }
+
+        .map-wrap {
+            position: relative;
+            min-height: 100vh;
+        }
+
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+
+        .map-topbar {
+            position: absolute;
+            top: 18px;
+            left: 18px;
+            right: 18px;
+            z-index: 1100;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+
+        .map-topbar > * {
+            pointer-events: auto;
+        }
+
+        .topbar-pill {
+            background: rgba(255, 255, 255, 0.88);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            backdrop-filter: blur(14px);
+            color: #0f172a;
+            border-radius: 999px;
+            padding: 10px 14px;
+            font-size: 12px;
+            box-shadow: var(--shadow);
+        }
+
+        .legend {
+            position: absolute;
+            left: 18px;
+            bottom: 18px;
+            z-index: 1100;
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 18px;
+            padding: 12px 14px;
+            box-shadow: var(--shadow);
+            min-width: 210px;
+        }
+
+        .legend-title {
+            font-size: 12px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #0f172a;
+        }
+
+        .legend-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 5px;
+        }
+
+        .legend-swatch {
+            width: 18px;
+            height: 10px;
+            border-radius: 4px;
+            flex: 0 0 auto;
+        }
+
+        .county-label {
+            background: rgba(255, 255, 255, 0.94);
+            color: #0f172a;
+            border: 1px solid rgba(37, 99, 235, 0.22);
+            border-radius: 10px;
+            padding: 4px 6px;
+            font-size: 11px;
+            white-space: nowrap;
+            box-shadow: var(--shadow);
+        }
+
+        .county-label strong {
+            display: block;
+            color: #1d4ed8;
+        }
+
+        .leaflet-container {
+            background: #f8fafc;
+        }
+
+        .leaflet-popup-content-wrapper,
+        .leaflet-popup-tip {
+            background: rgba(255, 255, 255, 0.98);
+            color: #0f172a;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+        }
+
+        .leaflet-popup-content {
+            margin: 12px 14px;
+            font-size: 13px;
+        }
+
+        .detail-overlay {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1400;
+            background: rgba(15, 23, 42, 0.44);
+            padding: 18px;
+        }
+
+        .detail-overlay.open {
+            display: flex;
+        }
+
+        .charts-overlay {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1500;
+            background: rgba(15, 23, 42, 0.6);
+            padding: 18px;
+        }
+
+        .charts-overlay.open { display: flex; }
+
+        .detail-modal {
+            width: min(920px, 100%);
+            max-height: min(88vh, 920px);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            border-radius: 22px;
+            background: #ffffff;
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            box-shadow: 0 28px 72px rgba(15, 23, 42, 0.22);
+        }
+
+        .detail-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 18px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+            background: linear-gradient(135deg, #f8fafc, #eef2ff);
+        }
+
+        .detail-head h2 {
+            margin: 0;
+            font-size: 20px;
+            color: #0f172a;
+        }
+
+        .detail-body {
+            padding: 18px;
+            overflow: hidden;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .detail-stat {
+            background: #f8fafc;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 16px;
+            padding: 12px;
+        }
+
+        .detail-stat .value {
+            display: block;
+            font-weight: 800;
+            font-size: 22px;
+            color: #0f172a;
+        }
+
+        .detail-stat .label {
+            display: block;
+            margin-top: 4px;
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .detail-text {
+            color: #334155;
+            margin-bottom: 14px;
+            line-height: 1.5;
+        }
+
+        .detail-section-title {
+            margin: 0 0 10px;
+            font-size: 14px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        .detail-chart-shell {
+            height: 320px;
+            background: #ffffff;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 18px;
+            overflow: hidden;
+        }
+
+        .detail-chart-shell canvas {
+            width: 100% !important;
+            height: 100% !important;
+            display: block;
+        }
+
+        .mobile-toggle {
+            display: none;
+        }
+
+        @media (max-width: 1200px) {
+            .shell {
+                grid-template-columns: 380px minmax(0, 1fr);
+            }
+        }
+
+        @media (max-width: 980px) {
+            .shell {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                order: 2;
+                border-right: none;
+                border-top: 1px solid rgba(148, 163, 184, 0.12);
+            }
+
+            .map-wrap {
+                order: 1;
+                min-height: 64vh;
+            }
+
+            #map {
+                height: 64vh;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="shell">
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="eyebrow">Market Forecast</div>
+                <h1>Где открываться дальше</h1>
+                <p class="subtitle">Один endpoint. Плотность, история, прогноз открытия и recommendation score для каждого округа.</p>
+            </div>
+
+            <div class="card">
+                <h2>Параметры</h2>
+                <div class="controls">
+                    <div class="grid-2">
+                        <div class="field">
+                            <label for="yearsAhead">Years ahead</label>
+                            <input id="yearsAhead" type="number" min="1" max="50" value="5" />
+                        </div>
+                        <div class="field">
+                            <label for="lookbackYears">Lookback years</label>
+                            <input id="lookbackYears" type="number" min="1" max="50" value="10" />
+                        </div>
+                    </div>
+
+                    <div class="grid-2">
+                        <div class="field">
+                            <label for="asOfYear">As of year</label>
+                            <input id="asOfYear" type="number" min="1900" max="2021" value="2021" />
+                        </div>
+                        <div class="field">
+                            <label for="forecastMethod">Forecast method</label>
+                            <select id="forecastMethod">
+                                <option value="linear_all" selected>linear_all</option>
+                                <option value="weighted">weighted</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label for="metricSelect">Map metric</label>
+                        <select id="metricSelect">
+                            <option value="recommendation_score" selected>recommendation_score</option>
+                            <option value="density_per_km2">density_per_km2</option>
+                            <option value="forecast_total_opened_next_years">forecast_total_opened_next_years</option>
+                            <option value="open_restaurants">open_restaurants</option>
+                        </select>
+                    </div>
+
+                    <div class="grid-2">
+                        <button class="primary" id="runBtn">Построить</button>
+                    </div>
+
+                    <p class="hint">Привет Семен.</p>
+                    <div class="status" id="status"></div>
+                </div>
+            </div>
+
+            <div class="stats">
+                <div class="stat">
+                    <span class="value" id="statCount">0</span>
+                    <span class="label">Округов в выборке</span>
+                </div>
+                <div class="stat">
+                    <span class="value" id="statScore">0</span>
+                    <span class="label">Средний recommendation score</span>
+                </div>
+                <div class="stat">
+                    <span class="value" id="statDensity">0</span>
+                    <span class="label">Средняя плотность</span>
+                </div>
+                <div class="stat">
+                    <span class="value" id="statForecast">0</span>
+                    <span class="label">Средний прогноз открытий</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>State insight</h3>
+                <div class="state-chips" id="stateChips"></div>
+                <div style="height: 10px;"></div>
+                <div class="insight" id="stateInsight">Выбери штат, чтобы увидеть краткое объяснение.</div>
+            </div>
+
+            <div class="card">
+                <h3>Потенциал районов: density, forecast, score</h3>
+                <div class="grid-2" style="margin-bottom:8px; align-items:center;">
+                    <div class="field">
+                        <label for="chartStateSelect">State for chart</label>
+                        <select id="chartStateSelect">
+                            <option value="__all__">All states</option>
+                        </select>
+                    </div>
+                    <div style="align-self:end; text-align:right; font-size:12px; color:var(--muted);">Показаны относительные значения; тултип содержит исходные числа.</div>
+                </div>
+                <div class="chart-shell"><canvas id="bubbleChart"></canvas></div>
+            </div>
+
+            <div class="card">
+                <h3>Штаты по среднему score</h3>
+                <div class="chart-shell"><canvas id="stateChart"></canvas></div>
+            </div>
+
+            <div class="card">
+                <h3>Топ / анти-топ округи</h3>
+                <div class="ranking" id="rankingList"></div>
+            </div>
+        </aside>
+
+        <section class="map-wrap">
+            <div class="map-topbar">
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <div class="topbar-pill" id="mapPill">Ожидание данных</div>
+                    <div class="topbar-pill" id="focusPill">Фокус: весь набор</div>
+                </div>
+                <div>
+                    <button class="ghost" id="openChartsBtn">Charts</button>
+                </div>
+            </div>
+            <div id="map"></div>
+            <div class="legend" id="legend">
+                <div class="legend-title" id="legendTitle">Recommendation score</div>
+                <div class="legend-row"><span class="legend-swatch" style="background:#064e3b;"></span>Высокий</div>
+                <div class="legend-row"><span class="legend-swatch" style="background:#059669;"></span>Сильный</div>
+                <div class="legend-row"><span class="legend-swatch" style="background:#eab308;"></span>Средний</div>
+                <div class="legend-row"><span class="legend-swatch" style="background:#f97316;"></span>Слабый</div>
+                <div class="legend-row"><span class="legend-swatch" style="background:#991b1b;"></span>Плохой</div>
+            </div>
+        </section>
+    </div>
+
+    <div class="charts-overlay" id="chartsOverlay" aria-hidden="true">
+        <div class="detail-modal" style="width:90%; max-width:1200px;">
+            <div class="detail-head" style="align-items:center;">
+                <div>
+                    <h2>Charts (full)</h2>
+                    <div class="hint">Нажмите за пределы или кнопку Закрыть, чтобы вернуться к карте.</div>
+                </div>
+                <div style="margin-left:12px;"><button class="ghost" id="closeChartsBtn">Закрыть</button></div>
+            </div>
+            <div class="detail-body" style="padding:18px;">
+                <div style="display:grid; grid-template-columns:1fr 360px; gap:12px;">
+                    <div class="detail-chart-shell" style="height:520px;"><canvas id="bubbleChartFull"></canvas></div>
+                    <div style="display:flex; flex-direction:column; gap:12px;">
+                        <div class="chart-shell" style="height:240px;"><canvas id="stateChartFull"></canvas></div>
+                        <div class="card" style="padding:10px; overflow:auto; max-height:260px;">
+                            <h3 style="margin:6px 0 8px 0;">Top / Anti-top</h3>
+                            <div id="rankingListFull"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="detail-overlay" id="detailOverlay" aria-hidden="true">
+        <div class="detail-modal" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+            <div class="detail-head">
+                <div>
+                    <h2 id="detailTitle">Район</h2>
+                    <div class="hint" id="detailSubtitle">Подробная статистика</div>
+                </div>
+            </div>
+            <div class="detail-body">
+                <div class="detail-grid">
+                    <div class="detail-stat"><span class="value" id="detailScore">0</span><span class="label">Recommendation score</span></div>
+                    <div class="detail-stat"><span class="value" id="detailDensity">0</span><span class="label">Density / km²</span></div>
+                    <div class="detail-stat"><span class="value" id="detailOpen">0</span><span class="label">Open restaurants</span></div>
+                    <div class="detail-stat"><span class="value" id="detailForecast">0</span><span class="label">Forecast next years</span></div>
+                </div>
+                <div class="detail-text" id="detailText"></div>
+                <div class="detail-section-title">Уже имеющиеся рестораны</div>
+                <div class="detail-chart-shell"><canvas id="countyDetailChart"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG = {
+            apiBase: 'http://127.0.0.1:8000',
+            maxAsOfYear: 2021,
+            defaultYearsAhead: 5,
+            defaultLookbackYears: 10,
+            chartMaxTopItems: 12,
+            metrics: {
+                recommendation_score: [
+                    { min: 80, color: '#0f766e' },
+                    { min: 60, color: '#14b8a6' },
+                    { min: 40, color: '#eab308' },
+                    { min: 20, color: '#f97316' },
+                    { min: 0, color: '#991b1b' }
+                ],
+                density_per_km2: [
+                    { min: 20, color: '#0f766e' },
+                    { min: 10, color: '#14b8a6' },
+                    { min: 4, color: '#eab308' },
+                    { min: 1.5, color: '#f97316' },
+                    { min: 0, color: '#991b1b' }
+                ],
+                forecast_total_opened_next_years: [
+                    { min: 60, color: '#0f766e' },
+                    { min: 30, color: '#14b8a6' },
+                    { min: 10, color: '#eab308' },
+                    { min: 4, color: '#f97316' },
+                    { min: 0, color: '#991b1b' }
+                ],
+                open_restaurants: [
+                    { min: 700, color: '#0f766e' },
+                    { min: 300, color: '#14b8a6' },
+                    { min: 120, color: '#eab308' },
+                    { min: 40, color: '#f97316' },
+                    { min: 0, color: '#991b1b' }
+                ]
+            },
+            chartColors: {
+                density: 'rgba(37, 99, 235, 0.76)',
+                forecast: 'rgba(245, 158, 11, 0.76)',
+                score: 'rgba(22, 163, 74, 0.76)'
+            }
+        };
+
+        const debounce = (fn, wait = 120) => {
+            let timer = 0;
+            return (...args) => {
+                window.clearTimeout(timer);
+                timer = window.setTimeout(() => fn(...args), wait);
+            };
+        };
+
+        const yearsAheadInput = document.getElementById('yearsAhead');
+        const lookbackYearsInput = document.getElementById('lookbackYears');
+        const asOfYearInput = document.getElementById('asOfYear');
+        const forecastMethodInput = document.getElementById('forecastMethod');
+        const metricSelect = document.getElementById('metricSelect');
+        const chartStateSelect = document.getElementById('chartStateSelect');
+        const runBtn = document.getElementById('runBtn');
+        const statusEl = document.getElementById('status');
+        const mapPill = document.getElementById('mapPill');
+        const focusPill = document.getElementById('focusPill');
+        const statCount = document.getElementById('statCount');
+        const statScore = document.getElementById('statScore');
+        const statDensity = document.getElementById('statDensity');
+        const statForecast = document.getElementById('statForecast');
+        const stateChips = document.getElementById('stateChips');
+        const stateInsight = document.getElementById('stateInsight');
+        const rankingList = document.getElementById('rankingList');
+        const legendTitle = document.getElementById('legendTitle');
+        const bubbleChartCanvas = document.getElementById('bubbleChart');
+        const stateChartCanvas = document.getElementById('stateChart');
+        const bubbleChartFullCanvas = document.getElementById('bubbleChartFull');
+        const stateChartFullCanvas = document.getElementById('stateChartFull');
+        const chartsOverlay = document.getElementById('chartsOverlay');
+        const openChartsBtn = document.getElementById('openChartsBtn');
+        const closeChartsBtn = document.getElementById('closeChartsBtn');
+        const rankingListFull = document.getElementById('rankingListFull');
+        const detailOverlay = document.getElementById('detailOverlay');
+        const detailTitle = document.getElementById('detailTitle');
+        const detailSubtitle = document.getElementById('detailSubtitle');
+        const detailScore = document.getElementById('detailScore');
+        const detailDensity = document.getElementById('detailDensity');
+        const detailOpen = document.getElementById('detailOpen');
+        const detailForecast = document.getElementById('detailForecast');
+        const detailText = document.getElementById('detailText');
+        const countyDetailChartCanvas = document.getElementById('countyDetailChart');
+
+        let map = null;
+        let countyLayer = null;
+        let bubbleChart = null;
+        let stateChart = null;
+        let bubbleChartFull = null;
+        let stateChartFull = null;
+        let countyDetailChart = null;
+        let countyBorders = null;
+        let currentItems = [];
+        let currentStates = [];
+        let selectedState = null;
+        let selectedChartState = '__all__';
+        let selectedGeoid = null;
+        let labelsLayer = null;
+        let countyLayerByGeoid = new Map();
+        let currentItemByGeoid = new Map();
+        let currentStateByName = new Map();
+        function clamp(value, min, max) {
+            return Math.max(min, Math.min(max, value));
+        }
+
+        function fmt(value, digits = 1) {
+            const number = Number(value);
+            return Number.isFinite(number) ? number.toFixed(digits) : '-';
+        }
+
+        function toQueryParams() {
+            const params = new URLSearchParams();
+            params.set('years_ahead', String(clamp(Number(yearsAheadInput.value || CONFIG.defaultYearsAhead), 1, 50)));
+            params.set('lookback_years', String(clamp(Number(lookbackYearsInput.value || CONFIG.defaultLookbackYears), 1, 50)));
+            params.set('as_of_year', String(clamp(Number(asOfYearInput.value || CONFIG.maxAsOfYear), 1900, CONFIG.maxAsOfYear)));
+            params.set('forecast_method', forecastMethodInput.value);
+            return params;
+        }
+
+        function getMetricColor(metric, value) {
+            const thresholds = CONFIG.metrics[metric] || CONFIG.metrics.recommendation_score;
+            const numericValue = Number(value) || 0;
+            for (const threshold of thresholds) {
+                if (numericValue >= threshold.min) return threshold.color;
+            }
+            return thresholds[thresholds.length - 1]?.color || '#991b1b';
+        }
+
+        function getReadableTextColor(hexColor) {
+            const normalized = String(hexColor).replace('#', '');
+            const fullHex = normalized.length === 3
+                ? normalized.split('').map(chunk => chunk + chunk).join('')
+                : normalized.padEnd(6, '0');
+            const red = parseInt(fullHex.slice(0, 2), 16);
+            const green = parseInt(fullHex.slice(2, 4), 16);
+            const blue = parseInt(fullHex.slice(4, 6), 16);
+            const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
+            return luminance > 0.62 ? '#0f172a' : '#ffffff';
+        }
+
+        function getLegendTitle() {
+            const metric = metricSelect.value;
+            if (metric === 'density_per_km2') return 'Плотность заведений/км²';
+            if (metric === 'forecast_total_opened_next_years') return 'Прогноз открытий';
+            if (metric === 'open_restaurants') return 'Текущие открытые';
+            return 'Recommendation score';
+        }
+
+        function aggregateStates(items) {
+            const mapByState = new Map();
+            items.forEach(item => {
+                const state = item.state || 'Unknown';
+                const bucket = mapByState.get(state) || {
+                    state,
+                    items: [],
+                    avgScore: 0,
+                    avgDensity: 0,
+                    avgForecast: 0,
+                    best: null,
+                    worst: null
+                };
+                bucket.items.push(item);
+                mapByState.set(state, bucket);
+            });
+
+            const out = [];
+            mapByState.forEach(bucket => {
+                const itemsInState = bucket.items;
+                const total = itemsInState.length || 1;
+                bucket.avgScore = itemsInState.reduce((sum, row) => sum + Number(row.recommendation_score || 0), 0) / total;
+                bucket.avgDensity = itemsInState.reduce((sum, row) => sum + Number(row.density_per_km2 || 0), 0) / total;
+                bucket.avgForecast = itemsInState.reduce((sum, row) => sum + Number(row.forecast_total_opened_next_years || 0), 0) / total;
+                bucket.best = [...itemsInState].sort((a, b) => Number(b.recommendation_score || 0) - Number(a.recommendation_score || 0))[0] || null;
+                bucket.worst = [...itemsInState].sort((a, b) => Number(a.recommendation_score || 0) - Number(b.recommendation_score || 0))[0] || null;
+                out.push(bucket);
+            });
+
+            return out.sort((a, b) => b.avgScore - a.avgScore || a.state.localeCompare(b.state));
+        }
+
+        function groupByGeoid(items) {
+            const mapByGeoid = new Map();
+            items.forEach(item => mapByGeoid.set(String(item.geoid), item));
+            return mapByGeoid;
+        }
+
+        function explainState(bucket) {
+            if (!bucket) return 'Выбери штат, чтобы увидеть объяснение.';
+            const best = bucket.best;
+            const reasons = [];
+            if ((bucket.avgDensity || 0) >= 10) reasons.push('плотные округа');
+            if ((bucket.avgForecast || 0) >= 25) reasons.push('сильный прогноз открытий');
+            if ((bucket.avgScore || 0) >= 65) reasons.push('высокий recommendation score');
+            if (!reasons.length) reasons.push('умеренный потенциал');
+            const winnerText = best ? `${best.county}, score ${fmt(best.recommendation_score, 0)}` : 'нет данных';
+            return `<strong>${bucket.state}</strong>: ${reasons.join(', ')}. Лучший округ: <strong>${winnerText}</strong>.`;
+        }
+
+        function explainCounty(item) {
+            if (!item) return '';
+            const score = Number(item.recommendation_score || 0);
+            const density = Number(item.density_per_km2 || 0);
+            const forecast = Number(item.forecast_total_opened_next_years || 0);
+            const reasons = [];
+            if (score >= 80) {
+                reasons.push('очень сильный кандидат на запуск');
+            } else if (score >= 60) {
+                reasons.push('сильный баланс плотности и прогноза');
+            } else if (score >= 40) {
+                reasons.push('средний потенциал, стоит смотреть выборочно');
+            } else {
+                reasons.push('слабее по score, требуется осторожность');
+            }
+            if (density >= 10) {
+                reasons.push('рынок уже плотный');
+            }
+            if (forecast >= 20) {
+                reasons.push('есть заметный прогноз открытий');
+            }
+            return reasons.join('. ') + '.';
+        }
+
+        function renderCountyDetailChart(item) {
+            if (countyDetailChart) {
+                countyDetailChart.destroy();
+            }
+
+            const history = Object.entries(item.history_opened_by_year || {})
+                .map(([year, value]) => ({ year: Number(year), history: Number(value) || 0, forecast: null }));
+            const forecast = Object.entries(item.forecast_opened_by_year || {})
+                .map(([year, value]) => ({ year: Number(year), history: null, forecast: Number(value) || 0 }));
+            const merged = new Map();
+
+            history.forEach(entry => merged.set(entry.year, { year: entry.year, history: entry.history, forecast: null }));
+            forecast.forEach(entry => {
+                const current = merged.get(entry.year) || { year: entry.year, history: null, forecast: null };
+                current.forecast = entry.forecast;
+                merged.set(entry.year, current);
+            });
+
+            const rows = [...merged.values()].sort((a, b) => a.year - b.year);
+            const labels = rows.map(row => String(row.year));
+            const historyValues = rows.map(row => row.history);
+            const forecastValues = rows.map(row => row.forecast);
+
+            countyDetailChart = new Chart(countyDetailChartCanvas, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: 'Уже открыто',
+                            data: historyValues,
+                            backgroundColor: CONFIG.chartColors.density,
+                            borderRadius: 8,
+                            maxBarThickness: 20
+                        },
+                        {
+                            label: 'Прогноз',
+                            data: forecastValues,
+                            backgroundColor: CONFIG.chartColors.forecast,
+                            borderRadius: 8,
+                            maxBarThickness: 20
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { display: true, position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: context => `${context.dataset.label}: ${context.parsed.y ?? context.parsed}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#334155' },
+                            grid: { display: false }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#334155' },
+                            grid: { color: 'rgba(148, 163, 184, 0.16)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function openCountyDetails(item) {
+            if (!item) return;
+            detailTitle.textContent = `${item.county}, ${item.state}`;
+            detailSubtitle.textContent = 'Подробная статистика по району';
+            detailScore.textContent = fmt(item.recommendation_score, 0);
+            detailDensity.textContent = fmt(item.density_per_km2, 2);
+            detailOpen.textContent = fmt(item.open_restaurants, 0);
+            detailForecast.textContent = fmt(item.forecast_total_opened_next_years, 0);
+            detailText.innerHTML = `
+                <strong>Почему это выглядит так:</strong> ${explainCounty(item)}<br/>
+                <strong>Годы истории:</strong> ${Object.keys(item.history_opened_by_year || {}).length}
+            `;
+            detailOverlay.classList.add('open');
+            detailOverlay.setAttribute('aria-hidden', 'false');
+            requestAnimationFrame(() => {
+                renderCountyDetailChart(item);
+            });
+        }
+
+        function closeCountyDetails() {
+            detailOverlay.classList.remove('open');
+            detailOverlay.setAttribute('aria-hidden', 'true');
+        }
+
+        function computeFocusState(items) {
+            if (selectedState) {
+                return currentStateByName.get(selectedState) || currentStates[0] || null;
+            }
+            return currentStates[0] || null;
+        }
+
+        function populateStateChips(states) {
+            stateChips.innerHTML = '';
+            states.slice(0, 10).forEach(bucket => {
+                const chip = document.createElement('button');
+                chip.className = 'chip' + (bucket.state === selectedState ? ' active' : '');
+                chip.type = 'button';
+                chip.textContent = `${bucket.state} · ${fmt(bucket.avgScore, 0)}`;
+                chip.addEventListener('click', () => {
+                    selectedState = bucket.state;
+                    renderSidebar();
+                    renderMap();
+                });
+                stateChips.appendChild(chip);
+            });
+        }
+
+        function populateChartStateSelect(states) {
+            const current = chartStateSelect.value || selectedChartState || '__all__';
+            chartStateSelect.innerHTML = '<option value="__all__">All states</option>';
+            states.forEach(bucket => {
+                const option = document.createElement('option');
+                option.value = bucket.state;
+                option.textContent = `${bucket.state} · ${fmt(bucket.avgScore, 0)}`;
+                chartStateSelect.appendChild(option);
+            });
+            chartStateSelect.value = states.some(bucket => bucket.state === current) ? current : '__all__';
+            selectedChartState = chartStateSelect.value;
+        }
+
+        function renderStats(items, states) {
+            statCount.textContent = String(items.length);
+            statScore.textContent = fmt(items.reduce((sum, row) => sum + Number(row.recommendation_score || 0), 0) / Math.max(1, items.length), 1);
+            statDensity.textContent = fmt(items.reduce((sum, row) => sum + Number(row.density_per_km2 || 0), 0) / Math.max(1, items.length), 2);
+            statForecast.textContent = fmt(items.reduce((sum, row) => sum + Number(row.forecast_total_opened_next_years || 0), 0) / Math.max(1, items.length), 1);
+            populateStateChips(states);
+        }
+
+        function renderSidebar() {
+            renderStats(currentItems, currentStates);
+            stateInsight.innerHTML = explainState(computeFocusState(currentItems));
+            focusPill.textContent = selectedState ? `Фокус: ${selectedState}` : 'Фокус: весь набор';
+            populateChartStateSelect(currentStates);
+        }
+
+        function filterItemsForChart(items) {
+            if (!selectedChartState || selectedChartState === '__all__') return items;
+            return items.filter(item => item.state === selectedChartState);
+        }
+
+        function renderCharts() {
+            const chartItems = filterItemsForChart(currentItems);
+            renderBubbleChart(chartItems);
+            renderStateChart(currentStates);
+            renderRanking(chartItems, rankingList);
+            renderRanking(chartItems, rankingListFull);
+            renderStateChartFull(currentStates);
+            renderBubbleChartFull(chartItems);
+        }
+
+        function renderRankings() {
+            renderRanking(currentItems);
+        }
+
+        function renderRanking(items, target = rankingList) {
+            const sorted = [...items].sort((a, b) => Number(b.recommendation_score || 0) - Number(a.recommendation_score || 0));
+            const topItems = sorted.slice(0, 5);
+            const worstItems = sorted.slice(-5).reverse();
+
+            target.innerHTML = '';
+
+            const renderRow = (item, kind) => {
+                const row = document.createElement('div');
+                row.className = `ranking-row ${kind}`;
+                row.innerHTML = `
+                    <div>
+                        <div class="county-name">${item.county}, ${item.state}</div>
+                        <div class="county-meta">density ${fmt(item.density_per_km2, 2)} · forecast ${fmt(item.forecast_total_opened_next_years, 0)} · open ${fmt(item.open_restaurants, 0)}</div>
+                    </div>
+                    <div class="score-badge" style="background:${getMetricColor('recommendation_score', item.recommendation_score)};color:${getReadableTextColor(getMetricColor('recommendation_score', item.recommendation_score))}">${fmt(item.recommendation_score, 0)}</div>
+                `;
+                row.addEventListener('click', () => {
+                    selectedGeoid = String(item.geoid);
+                    if (item.state) selectedState = item.state;
+                    focusPill.textContent = `Фокус: ${item.county}, ${item.state}`;
+                    openCountyDetails(item);
+                    const focusedLayer = countyLayerByGeoid.get(String(item.geoid));
+                    if (focusedLayer) {
+                        focusedLayer.openPopup();
+                        const bounds = focusedLayer.getBounds();
+                        if (bounds && bounds.isValid()) {
+                            map.fitBounds(bounds.pad(0.25));
+                        }
+                    }
+                    renderSidebar();
+                    renderMap();
+                });
+                target.appendChild(row);
+            };
+
+            topItems.forEach(item => renderRow(item, 'top'));
+            const divider = document.createElement('div');
+            divider.className = 'hint';
+            divider.style.margin = '4px 2px';
+            divider.textContent = 'Анти-топ';
+            target.appendChild(divider);
+            worstItems.forEach(item => renderRow(item, 'bottom'));
+        }
+
+        function renderBubbleChart(items) {
+            if (bubbleChart) {
+                bubbleChart.destroy();
+            }
+
+            // Reworked: normalized grouped horizontal bars for quick visual comparison
+            const sorted = [...items]
+                .sort((a, b) => Number(b.recommendation_score || 0) - Number(a.recommendation_score || 0))
+                .slice(0, CONFIG.chartMaxTopItems);
+
+            const labels = sorted.map(item => `${item.county}, ${item.state}`);
+            const rawDensity = sorted.map(item => Number(item.density_per_km2 || 0));
+            const rawForecast = sorted.map(item => Number(item.forecast_total_opened_next_years || 0));
+            const rawScore = sorted.map(item => Number(item.recommendation_score || 0));
+
+            const normalize = arr => {
+                const min = Math.min(...arr);
+                const max = Math.max(...arr);
+                if (!Number.isFinite(min) || !Number.isFinite(max) || max === min) {
+                    return arr.map(() => 50);
+                }
+                return arr.map(v => ((v - min) / (max - min)) * 100);
+            };
+
+            const normDensity = normalize(rawDensity);
+            const normForecast = normalize(rawForecast);
+            const normScore = normalize(rawScore);
+
+            bubbleChart = new Chart(bubbleChartCanvas, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: 'Density',
+                            data: normDensity,
+                            backgroundColor: CONFIG.chartColors.density,
+                            borderRadius: 8,
+                            maxBarThickness: 18
+                        },
+                        {
+                            label: 'Forecast',
+                            data: normForecast,
+                            backgroundColor: CONFIG.chartColors.forecast,
+                            borderRadius: 8,
+                            maxBarThickness: 18
+                        },
+                        {
+                            label: 'Score',
+                            data: normScore,
+                            backgroundColor: CONFIG.chartColors.score,
+                            borderRadius: 8,
+                            maxBarThickness: 18
+                        }
+                    ]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                title: items => {
+                                    const idx = items[0].dataIndex;
+                                    return labels[idx] || '';
+                                },
+                                label: ctx => {
+                                    const idx = ctx.dataIndex;
+                                    const ds = ctx.datasetIndex;
+                                    if (ds === 0) return `Density: ${fmt(rawDensity[idx], 2)}`;
+                                    if (ds === 1) return `Forecast: ${fmt(rawForecast[idx], 0)}`;
+                                    return `Score: ${fmt(rawScore[idx], 0)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            min: 0,
+                            max: 100,
+                            ticks: { color: '#334155' },
+                            grid: { color: 'rgba(148, 163, 184, 0.16)' }
+                        },
+                        y: {
+                            ticks: { color: '#334155' },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderBubbleChartFull(items) {
+            if (bubbleChartFull && typeof bubbleChartFull.destroy === 'function') {
+                bubbleChartFull.destroy();
+            }
+            const sorted = [...items].sort((a, b) => Number(b.recommendation_score || 0) - Number(a.recommendation_score || 0)).slice(0, CONFIG.chartMaxTopItems);
+            const labels = sorted.map(item => `${item.county}, ${item.state}`);
+            const rawDensity = sorted.map(item => Number(item.density_per_km2 || 0));
+            const rawForecast = sorted.map(item => Number(item.forecast_total_opened_next_years || 0));
+            const rawScore = sorted.map(item => Number(item.recommendation_score || 0));
+            const normalize = arr => {
+                const min = Math.min(...arr);
+                const max = Math.max(...arr);
+                if (!Number.isFinite(min) || !Number.isFinite(max) || max === min) return arr.map(() => 50);
+                return arr.map(v => ((v - min) / (max - min)) * 100);
+            };
+            const normDensity = normalize(rawDensity);
+            const normForecast = normalize(rawForecast);
+            const normScore = normalize(rawScore);
+            bubbleChartFull = new Chart(bubbleChartFullCanvas, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'Density', data: normDensity, backgroundColor: CONFIG.chartColors.density, borderRadius: 8, maxBarThickness: 18 },
+                        { label: 'Forecast', data: normForecast, backgroundColor: CONFIG.chartColors.forecast, borderRadius: 8, maxBarThickness: 18 },
+                        { label: 'Score', data: normScore, backgroundColor: CONFIG.chartColors.score, borderRadius: 8, maxBarThickness: 18 }
+                    ]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                title: items => labels[items[0].dataIndex] || '',
+                                label: ctx => {
+                                    const idx = ctx.dataIndex;
+                                    if (ctx.datasetIndex === 0) return `Density: ${fmt(rawDensity[idx], 2)}`;
+                                    if (ctx.datasetIndex === 1) return `Forecast: ${fmt(rawForecast[idx], 0)}`;
+                                    return `Score: ${fmt(rawScore[idx], 0)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { min: 0, max: 100, ticks: { color: '#334155' }, grid: { color: 'rgba(148, 163, 184, 0.16)' } },
+                        y: { ticks: { color: '#334155' }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function renderStateChartFull(states) {
+            if (stateChartFull && typeof stateChartFull.destroy === 'function') {
+                stateChartFull.destroy();
+            }
+            const labels = states.slice(0, 10).map(item => item.state);
+            const values = states.slice(0, 10).map(item => Number(item.avgScore || 0));
+            const colors = values.map(value => getMetricColor('recommendation_score', value));
+            stateChartFull = new Chart(stateChartFullCanvas, {
+                type: 'bar',
+                data: { labels, datasets: [{ label: 'avg recommendation_score', data: values, backgroundColor: colors, borderRadius: 10 }] },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { min: 0, max: 100, ticks: { color: '#334155' }, grid: { color: 'rgba(148, 163, 184, 0.16)' } }, y: { ticks: { color: '#334155' }, grid: { display: false } } } }
+            });
+        }
+
+        function renderStateChart(states) {
+            if (stateChart) {
+                stateChart.destroy();
+            }
+
+            const labels = states.slice(0, 10).map(item => item.state);
+            const values = states.slice(0, 10).map(item => Number(item.avgScore || 0));
+            const colors = values.map(value => getMetricColor('recommendation_score', value));
+
+            stateChart = new Chart(stateChartCanvas, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'avg recommendation_score',
+                        data: values,
+                        backgroundColor: colors,
+                        borderRadius: 10
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            min: 0,
+                            max: 100,
+                            ticks: { color: '#334155' },
+                            grid: { color: 'rgba(148, 163, 184, 0.16)' }
+                        },
+                        y: {
+                            ticks: { color: '#334155' },
+                            grid: { display: false }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        function countyStyle(item, metric, isSelectedState) {
+            const metricValue = item ? Number(item[metric] || 0) : 0;
+            const fill = item ? getMetricColor(metric, metricValue) : '#111827';
+            const score = item ? Number(item.recommendation_score || 0) : 0;
+            const isTop = item && score >= 80;
+            const isBottom = item && score <= 20;
+            return {
+                color: item ? (isSelectedState ? '#0f172a' : '#64748b') : '#475569',
+                weight: item ? (selectedGeoid === String(item.geoid) ? 3.4 : (isTop || isBottom ? 2.4 : 1.2)) : 0.8,
+                opacity: 0.95,
+                fillColor: fill,
+                fillOpacity: item ? (isSelectedState ? 0.8 : 0.62) : 0.08,
+                dashArray: isBottom ? '5 4' : undefined
+            };
+        }
+
+        function buildCountyLayer(borders) {
+            if (countyLayer || !borders || !map) return;
+            const metric = metricSelect.value;
+            countyLayerByGeoid = new Map();
+            countyLayer = L.geoJSON(borders, {
+                style: feature => {
+                    const geoid = String(feature.properties?.geoid);
+                    const item = currentItemByGeoid.get(geoid);
+                    return countyStyle(item, metric, selectedState ? item?.state === selectedState : true);
+                },
+                onEachFeature: (feature, layer) => {
+                    const geoid = String(feature.properties?.geoid);
+                    const item = currentItemByGeoid.get(geoid);
+                    if (!item) return;
+                    countyLayerByGeoid.set(geoid, layer);
+                    layer.bindPopup(item.county, { closeButton: false, autoPan: false, className: 'county-name-popup' });
+                    layer.on('mouseover', event => layer.openPopup(event.latlng));
+                    layer.on('mouseout', () => layer.closePopup());
+                    layer.on('click', event => {
+                        if (event) L.DomEvent.stopPropagation(event);
+                        selectedGeoid = geoid;
+                        selectedState = item.state || selectedState;
+                        focusPill.textContent = `Фокус: ${item.county}, ${item.state}`;
+                        openCountyDetails(item);
+                        renderSidebar();
+                        renderMap();
+                    });
+                }
+            }).addTo(map);
+        }
+
+        function updateCountyLayerStyles() {
+            if (!countyLayer) return;
+            const metric = metricSelect.value;
+            countyLayer.eachLayer(layer => {
+                const geoid = String(layer.feature?.properties?.geoid || '');
+                const item = currentItemByGeoid.get(geoid);
+                const isSelectedState = selectedState ? item && item.state === selectedState : true;
+                layer.setStyle(countyStyle(item, metric, isSelectedState));
+            });
+        }
+
+        function renderCountyLabels(items) {
+            if (!map) return;
+            if (!labelsLayer) {
+                labelsLayer = L.layerGroup().addTo(map);
+            } else {
+                labelsLayer.clearLayers();
+            }
+
+            const selectedStateItems = selectedState ? items.filter(item => item.state === selectedState) : [];
+            const labelsToShow = selectedStateItems.length
+                ? selectedStateItems
+                : [...items].sort((a, b) => Number(b.recommendation_score || 0) - Number(a.recommendation_score || 0)).slice(0, 8);
+
+            labelsToShow.forEach(item => {
+                if (item.lat === null || item.lat === undefined || item.lon === null || item.lon === undefined) return;
+                labelsLayer.addLayer(L.marker([item.lat, item.lon], {
+                    interactive: false,
+                    icon: L.divIcon({
+                        className: '',
+                        html: `<div class="county-label"><strong>${item.county}</strong>${item.state}</div>`,
+                        iconSize: [120, 32],
+                        iconAnchor: [60, 16]
+                    })
+                }));
+            });
+        }
+
+        function renderMap() {
+            if (!map || !countyBorders) return;
+            buildCountyLayer(countyBorders);
+            updateCountyLayerStyles();
+            renderCountyLabels(currentItems);
+            legendTitle.textContent = getLegendTitle();
+            const focus = computeFocusState(currentItems);
+            if (focus) {
+                mapPill.textContent = `Штат: ${focus.state} · avg score ${fmt(focus.avgScore, 0)}`;
+            } else {
+                mapPill.textContent = 'Ожидание данных';
+            }
+        }
+
+        function renderAll() {
+            renderSidebar();
+            renderCharts();
+            renderRankings();
+            renderMap();
+        }
+
+        function openChartsOverlay() {
+            chartsOverlay.classList.add('open');
+            chartsOverlay.setAttribute('aria-hidden', 'false');
+            requestAnimationFrame(() => {
+                if (bubbleChartFull && typeof bubbleChartFull.resize === 'function') bubbleChartFull.resize();
+                if (stateChartFull && typeof stateChartFull.resize === 'function') stateChartFull.resize();
+            });
+        }
+
+        function closeChartsOverlay() {
+            chartsOverlay.classList.remove('open');
+            chartsOverlay.setAttribute('aria-hidden', 'true');
+        }
+
+        async function loadCountyBorders() {
+            if (countyBorders) return countyBorders;
+            const url = new URL(`${CONFIG.apiBase}/counties/borders`);
+            url.searchParams.set('simplify', '0.001');
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`counties/borders: ${response.status}`);
+            }
+            countyBorders = await response.json();
+            return countyBorders;
+        }
+
+        async function loadData() {
+            const params = toQueryParams();
+            const url = new URL(`${CONFIG.apiBase}/api/market/forecast`);
+            url.search = params.toString();
+            runBtn.disabled = true;
+            setStatus('Собираю прогноз и рейтинг округов...', false);
+            try {
+                const [forecastResponse] = await Promise.all([fetch(url), loadCountyBorders()]);
+                if (!forecastResponse.ok) {
+                    throw new Error(`forecast: ${forecastResponse.status}`);
+                }
+                const payload = await forecastResponse.json();
+                currentItems = (Array.isArray(payload) ? payload : (payload.items || []))
+                    .filter(item => Number(item.open_restaurants || 0) > 0)
+                    .sort((a, b) => Number(b.recommendation_score || 0) - Number(a.recommendation_score || 0));
+                currentItemByGeoid = new Map(currentItems.map(item => [String(item.geoid), item]));
+
+                if (!currentItems.length) {
+                    currentStates = [];
+                    currentStateByName = new Map();
+                    selectedState = null;
+                    setStatus('Нет данных для отображения.', true);
+                    renderAll();
+                    return;
+                }
+
+                currentStates = aggregateStates(currentItems);
+                currentStateByName = new Map(currentStates.map(item => [item.state, item]));
+                if (!selectedState || !currentStates.some(item => item.state === selectedState)) {
+                    selectedState = currentStates[0]?.state || null;
+                }
+                if (!selectedGeoid || !currentItemByGeoid.has(String(selectedGeoid))) {
+                    selectedGeoid = null;
+                }
+                setStatus(`Готово: ${currentItems.length} округов, ${currentStates.length} штатов.`, false);
+                renderAll();
+            } catch (err) {
+                setStatus(`Ошибка: ${err.message}`, true);
+            } finally {
+                runBtn.disabled = false;
+            }
+        }
+
+        function setStatus(message, isError = false) {
+            statusEl.textContent = message;
+            statusEl.style.color = isError ? '#dc2626' : 'var(--muted)';
+        }
+
+        async function initMap() {
+            map = L.map('map', {
+                zoomControl: true,
+                preferCanvas: true
+            }).setView([39.95, -97.5], 4);
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                subdomains: 'abcd',
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap & CARTO'
+            }).addTo(map);
+
+            map.on('zoomend', () => {
+                if (labelsLayer) {
+                    map.removeLayer(labelsLayer);
+                    labelsLayer = null;
+                }
+            });
+
+            map.on('click', () => {
+                closeCountyDetails();
+            });
+        }
+
+        const scheduleMapRender = debounce(renderMap, 60);
+        const scheduleLoadData = debounce(loadData, 140);
+
+        runBtn.addEventListener('click', loadData);
+        metricSelect.addEventListener('change', scheduleMapRender);
+        chartStateSelect.addEventListener('change', () => {
+            selectedChartState = chartStateSelect.value;
+            renderCharts();
+        });
+        if (openChartsBtn) {
+            openChartsBtn.addEventListener('click', openChartsOverlay);
+        }
+        if (closeChartsBtn) {
+            closeChartsBtn.addEventListener('click', closeChartsOverlay);
+        }
+        if (chartsOverlay) {
+            chartsOverlay.addEventListener('click', event => {
+                if (event.target === chartsOverlay) closeChartsOverlay();
+            });
+        }
+        yearsAheadInput.addEventListener('change', () => {
+            yearsAheadInput.value = clamp(Number(yearsAheadInput.value || CONFIG.defaultYearsAhead), 1, 50);
+            scheduleLoadData();
+        });
+        lookbackYearsInput.addEventListener('change', () => {
+            lookbackYearsInput.value = clamp(Number(lookbackYearsInput.value || CONFIG.defaultLookbackYears), 1, 50);
+            scheduleLoadData();
+        });
+        asOfYearInput.addEventListener('change', () => {
+            asOfYearInput.value = clamp(Number(asOfYearInput.value || CONFIG.maxAsOfYear), 1900, CONFIG.maxAsOfYear);
+            scheduleLoadData();
+        });
+        if (detailOverlay) {
+            detailOverlay.addEventListener('click', event => {
+                if (event.target === detailOverlay) {
+                    closeCountyDetails();
+                }
+            });
+        }
+
+        initMap().then(loadData);
+    </script>
+</body>
+</html>
