@@ -1011,7 +1011,19 @@ function updateCharts(data) {
                 easing: 'easeOutQuart'
             },
             plugins: {
-                legend: { display: false }
+                legend: {
+                    display: true,
+                    position: 'right',
+                    labels: {
+                        color: '#1e293b',
+                        font: {
+                            size: 12
+                        },
+                        padding: 14,
+                        usePointStyle: true,
+                        pointStyle: 'circle'
+                    }
+                }
             },
             onClick: (_evt, items) => handleChartClick(items, labels)
         }
