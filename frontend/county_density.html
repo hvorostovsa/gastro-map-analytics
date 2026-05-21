@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Анализ плотности заведений по административным районам</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
+        }
+        
+        .dashboard {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            position: relative;
+        }
+        
+        #map {
+            flex: 2;
+            transition: all 0.3s ease;
+        }
+        
+        .analysis-panel {
+            width: 33.333%;
+            height: 100vh;
+            background: white;
+            border-left: 1px solid #e2e8f0;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease;
+            z-index: 1001;
+            position: relative;
+        }
+        
+        .analysis-panel.collapsed {
+            transform: translateX(100%);
+        }
+        
+        .panel-toggle {
+            position: absolute;
+            left: -40px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 80px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px 0 0 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            box-shadow: -2px 0 8px rgba(0,0,0,0.1);
+            font-size: 20px;
+            font-weight: bold;
+            color: #cb181d;
+        }
+        
+        .title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #1e293b;
+            border-left: 4px solid #cb181d;
+            padding-left: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .stats-cards {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 12px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #cb181d;
+        }
+        
+        .stat-label {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 5px;
+        }
+        
+        .chart-container {
+            margin-bottom: 20px;
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .chart-container:hover {
+            background: #f1f5f9;
+        }
+        
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+        
+        .chart-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #334155;
+        }
+        
+        .expand-icon {
+            font-size: 12px;
+            color: #94a3b8;
+        }
+        
+        .chart-content {
+            max-height: 250px;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        
+        .chart-content.collapsed {
+            max-height: 0;
+        }
+        
+        canvas {
+            max-height: 250px;
+            width: 100% !important;
+        }
+        
+        .ranking-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+        }
+        
+        .ranking-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 12px;
+            font-weight: 600;
+            color: #475569;
+        }
+        
+        .ranking-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            border-bottom: 1px solid #e2e8f0;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .ranking-item:hover {
+            background: #f1f5f9;
+        }
+        
+        .rank {
+            width: 30px;
+            height: 30px;
+            background: #f1f5f9;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        .rank.top-1 { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #d97706; }
+        .rank.top-2 { background: linear-gradient(135deg, #e5e7eb, #d1d5db); color: #6b7280; }
+        .rank.top-3 { background: linear-gradient(135deg, #fed7aa, #fdba74); color: #c2410c; }
+        
+        .district-info {
+            flex: 1;
+            margin-left: 12px;
+        }
+        
+        .district-name {
+            font-weight: 600;
+            font-size: 13px;
+        }
+        
+        .district-meta {
+            font-size: 11px;
+            color: #64748b;
+        }
+        
+        .density-value {
+            font-weight: bold;
+            color: #cb181d;
+            font-size: 14px;
+        }
+        
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            z-index: 1000;
+            font-size: 11px;
+            min-width: 150px;
+            transition: right 0.3s ease;
+        }
+        
+        .legend.shifted {
+            right: calc(33.333% + 20px);
+        }
+        
+        .legend-color {
+            width: 25px;
+            height: 12px;
+            display: inline-block;
+            margin-right: 6px;
+            border-radius: 2px;
+        }
+        
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            z-index: 1000;
+            font-size: 12px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            transition: right 0.3s ease;
+        }
+        
+        .controls.shifted {
+            right: calc(33.333% + 20px);
+        }
+        
+        .message {
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.75);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            z-index: 1000;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        
+        /* Стиль для надписей округов на карте */
+        .county-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-shadow: 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white;
+            color: #1e293b;
+            background: rgba(255,255,240,0.85);
+            padding: 2px 6px;
+            border-radius: 4px;
+            white-space: nowrap;
+            font-family: 'Segoe UI', sans-serif;
+            pointer-events: none;
+            border: 1px solid rgba(0,0,0,0.1);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        
+        @media (max-width: 1000px) {
+            .analysis-panel { width: 40%; }
+            #map { flex: 1.5; }
+            .legend.shifted { right: calc(40% + 20px); }
+            .controls.shifted { right: calc(40% + 20px); }
+            .county-label { font-size: 9px; padding: 1px 4px; }
+        }
+        
+        @media (max-width: 768px) {
+            .analysis-panel { width: 50%; }
+            #map { flex: 1; }
+            .legend.shifted { right: calc(50% + 20px); }
+            .controls.shifted { right: calc(50% + 20px); }
+            .county-label { font-size: 8px; }
+        }
+    </style>
+</head>
+<body>
+<div class="dashboard">
+    <div id="map"></div>
+    <div class="analysis-panel" id="analysisPanel">
+        <div class="panel-toggle" id="panelToggle">▶</div>
+        <div class="panel-content">
+            <div class="title">
+                📊 Анализ плотности заведений
+                <span style="font-size: 12px; font-weight: normal;">административные районы</span>
+            </div>
+            
+            <div class="stats-cards">
+                <div class="stat-card" onclick="zoomToAll()">
+                    <div class="stat-value" id="totalDistricts">0</div>
+                    <div class="stat-label">Районов в кадре</div>
+                </div>
+                <div class="stat-card" onclick="zoomToAll()">
+                    <div class="stat-value" id="totalBusinesses">0</div>
+                    <div class="stat-label">Всего заведений</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="avgDensity">0</div>
+                    <div class="stat-label">Ср. плотность (зав/км²)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="maxDensity">0</div>
+                    <div class="stat-label">Макс. плотность</div>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <div class="chart-header" onclick="toggleChart('barChart')">
+                    <div class="chart-title">📈 Топ-10 районов по плотности</div>
+                    <div class="expand-icon" id="barChartIcon">▼</div>
+                </div>
+                <div class="chart-content" id="barChartContent">
+                    <canvas id="densityBarChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <div class="chart-header" onclick="toggleChart('donutChart')">
+                    <div class="chart-title">🥧 Распределение заведений по районам</div>
+                    <div class="expand-icon" id="donutChartIcon">▼</div>
+                </div>
+                <div class="chart-content" id="donutChartContent">
+                    <canvas id="donutChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="chart-header" style="margin-bottom: 8px;">
+                <div class="chart-title">🏆 Рейтинг районов</div>
+            </div>
+            <div class="ranking-header">
+                <span>Место</span>
+                <span>Район</span>
+                <span>Плотность</span>
+            </div>
+            <div class="ranking-list" id="rankingList">
+                <div style="padding: 20px; text-align: center; color: #94a3b8;">Приблизьтесь (zoom ≥ 8) для загрузки данных</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="controls" id="controls" style="display: none;">
+    <span>🔍 Управление</span>
+    <select id="metricSelect">
+        <option value="density">Сортировка по плотности</option>
+        <option value="count">Сортировка по количеству</option>
+    </select>
+    <button id="refreshBtn">🔄</button>
+</div>
+
+<div class="legend" id="legend" style="display: none;">
+    <div style="font-weight: bold; margin-bottom: 6px;">🎨 Плотность заведений/км²</div>
+    <div><span class="legend-color" style="background:#f0f0f0; border:1px solid #ccc;"></span> 0</div>
+    <div><span class="legend-color" style="background:#fee5d9;"></span> Низкая</div>
+    <div><span class="legend-color" style="background:#fcae91;"></span> Ниже среднего</div>
+    <div><span class="legend-color" style="background:#fb6a4a;"></span> Выше среднего</div>
+    <div><span class="legend-color" style="background:#cb181d;"></span> Высокая</div>
+</div>
+
+<div class="message" id="message"></div>
+
+<script>
+    let map;
+    let choroplethLayer = null;
+    let labelLayerGroup = null;
+    let barChart = null;
+    let donutChart = null;
+    let currentData = [];
+    let currentGeoJsonData = null;
+    
+    const API_BASE = 'http://localhost:8000/api/geo';
+    
+    function toggleChart(chartId) {
+        const content = document.getElementById(`${chartId}Content`);
+        const icon = document.getElementById(`${chartId}Icon`);
+        if (content.classList.contains('collapsed')) {
+            content.classList.remove('collapsed');
+            icon.textContent = '▼';
+        } else {
+            content.classList.add('collapsed');
+            icon.textContent = '▲';
+        }
+        setTimeout(() => {
+            if (barChart) barChart.resize();
+            if (donutChart) donutChart.resize();
+        }, 300);
+    }
+    
+    function getColor(density, quantiles) {
+        if (density === 0 || !density) return '#f0f0f0';
+        if (!quantiles) return '#fee5d9';
+        if (density <= quantiles.q1) return '#fee5d9';
+        if (density <= quantiles.q2) return '#fcae91';
+        if (density <= quantiles.q3) return '#fb6a4a';
+        return '#cb181d';
+    }
+    
+    // Функция для добавления названий округов на карту (исправленная версия)
+    function addCountyLabels(geoJsonData) {
+        // Удаляем старые метки безопасно
+        if (labelLayerGroup) {
+            map.removeLayer(labelLayerGroup);
+            labelLayerGroup = null;
+        }
+        
+        const zoom = map.getZoom();
+        // Показываем названия только при зуме >= 8
+        if (zoom < 8) {
+            labelLayerGroup = L.layerGroup().addTo(map);
+            return;
+        }
+        
+        labelLayerGroup = L.layerGroup();
+        let addedCount = 0;
+        
+        geoJsonData.features.forEach(feature => {
+            const props = feature.properties;
+            const countyName = props.county_name;
+            if (!countyName) return;
+            
+            // При низком зуме показываем только крупные районы (по названию, не показываем слишком длинные)
+            if (zoom < 9 && countyName.length > 12) return;
+            if (zoom < 8) return;
+            
+            try {
+                // Получаем центр полигона
+                const tempLayer = L.geoJSON(feature);
+                const bounds = tempLayer.getBounds();
+                
+                if (bounds && bounds.isValid() && bounds.getNorth() !== bounds.getSouth()) {
+                    const center = bounds.getCenter();
+                    
+                    // Создаем divIcon с текстом
+                    const fontSize = zoom >= 11 ? '12px' : (zoom >= 10 ? '11px' : (zoom >= 9 ? '10px' : '9px'));
+                    const icon = L.divIcon({
+                        className: 'county-label',
+                        html: `<div style="font-size: ${fontSize}; font-weight: 600; white-space: nowrap;">${countyName}</div>`,
+                        iconSize: [null, null],
+                        iconAnchor: [0, 0]
+                    });
+                    
+                    const marker = L.marker(center, {
+                        icon: icon,
+                        interactive: false,
+                        zIndexOffset: 1000
+                    });
+                    
+                    marker.addTo(labelLayerGroup);
+                    addedCount++;
+                }
+            } catch(e) {
+                // Игнорируем ошибки отдельных меток
+            }
+        });
+        
+        labelLayerGroup.addTo(map);
+    }
+    
+    async function loadChoroplethData() {
+        const bounds = map.getBounds();
+        const zoom = map.getZoom();
+        
+        if (zoom < 8) {
+            document.getElementById('controls').style.display = 'none';
+            document.getElementById('legend').style.display = 'none';
+            document.getElementById('rankingList').innerHTML = '<div style="padding: 20px; text-align: center; color: #94a3b8;">🔍 Приблизьтесь (zoom ≥ 8) для загрузки данных</div>';
+            document.getElementById('message').textContent = 'Приблизьтесь (zoom ≥ 8) для отображения данных';
+            document.getElementById('message').style.display = 'block';
+            if (labelLayerGroup) {
+                map.removeLayer(labelLayerGroup);
+                labelLayerGroup = null;
+            }
+            return;
+        }
+        
+        document.getElementById('controls').style.display = 'flex';
+        document.getElementById('legend').style.display = 'block';
+        document.getElementById('message').style.display = 'none';
+        
+        const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
+        
+        try {
+            const response = await fetch(`${API_BASE}/counties/density-choropleth?bbox=${encodeURIComponent(bbox)}&zoom=${zoom}&min_businesses=0`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (!data.features || data.features.length === 0) {
+                document.getElementById('rankingList').innerHTML = '<div style="padding: 20px; text-align: center; color: #94a3b8;">Нет данных в текущей области</div>';
+                if (labelLayerGroup) {
+                    map.removeLayer(labelLayerGroup);
+                    labelLayerGroup = null;
+                }
+                return;
+            }
+            
+            currentGeoJsonData = data;
+            
+            currentData = data.features.map(f => ({
+                name: f.properties.county_name,
+                state: f.properties.state,
+                business_count: f.properties.business_count || 0,
+                area_sqkm: f.properties.area_sqkm || 0,
+                density: f.properties.density_per_sqkm || 0
+            })).filter(d => d.density !== undefined && d.density !== null).sort((a, b) => b.density - a.density);
+            
+            const totalDistricts = currentData.length;
+            const totalBusinesses = currentData.reduce((sum, d) => sum + d.business_count, 0);
+            const avgDensity = totalDistricts > 0 ? currentData.reduce((sum, d) => sum + d.density, 0) / totalDistricts : 0;
+            const maxDensityVal = totalDistricts > 0 ? Math.max(...currentData.map(d => d.density)) : 0;
+            
+            document.getElementById('totalDistricts').textContent = totalDistricts;
+            document.getElementById('totalBusinesses').textContent = totalBusinesses.toLocaleString();
+            document.getElementById('avgDensity').textContent = avgDensity.toFixed(1);
+            document.getElementById('maxDensity').textContent = maxDensityVal.toFixed(1);
+            
+            updateCharts(currentData);
+            updateRanking(currentData);
+            updateChoropleth(data);
+            
+            // Добавляем названия округов после обновления хороплета
+            setTimeout(() => {
+                addCountyLabels(data);
+            }, 50);
+            
+        } catch (error) {
+            console.error('Error loading data:', error);
+            document.getElementById('message').textContent = 'Ошибка: сервер недоступен. Убедитесь, что бэкенд запущен';
+            document.getElementById('message').style.display = 'block';
+            document.getElementById('rankingList').innerHTML = '<div style="padding: 20px; text-align: center; color: #ef4444;">⚠️ Ошибка подключения к серверу</div>';
+        }
+    }
+    
+    function updateChoropleth(data) {
+        if (choroplethLayer) {
+            map.removeLayer(choroplethLayer);
+        }
+        
+        const densities = data.features.map(f => f.properties.density_per_sqkm).filter(d => d > 0 && d !== undefined);
+        let quantiles = { q1: 0, q2: 0, q3: 0 };
+        
+        if (densities.length > 0) {
+            densities.sort((a, b) => a - b);
+            quantiles = {
+                q1: densities[Math.floor(densities.length * 0.25)] || 0,
+                q2: densities[Math.floor(densities.length * 0.50)] || 0,
+                q3: densities[Math.floor(densities.length * 0.75)] || 0
+            };
+        }
+        
+        choroplethLayer = L.geoJSON(data, {
+            style: (feature) => ({
+                fillColor: getColor(feature.properties.density_per_sqkm, quantiles),
+                weight: 1,
+                opacity: 0.7,
+                color: '#ffffff',
+                fillOpacity: 0.7
+            }),
+            onEachFeature: (feature, layer) => {
+                const p = feature.properties;
+                const densityVal = p.density_per_sqkm || 0;
+                layer.bindPopup(`
+                    <b>${p.county_name || 'Неизвестно'}, ${p.state || ''}</b><br>
+                    📍 Заведений: ${(p.business_count || 0).toLocaleString()}<br>
+                    📐 Площадь: ${(p.area_sqkm || 0).toLocaleString()} км²<br>
+                    🍽️ Плотность: <strong style="color:#cb181d">${densityVal.toFixed(1)}</strong> зав/км²
+                `);
+                layer.on('mouseover', function() { 
+                    this.setStyle({ weight: 2, color: '#333', fillOpacity: 0.9 }); 
+                });
+                layer.on('mouseout', function() { 
+                    if (choroplethLayer) {
+                        choroplethLayer.resetStyle(this);
+                    }
+                });
+            }
+        }).addTo(map);
+    }
+    
+    function updateCharts(data) {
+        if (!data || data.length === 0) return;
+        
+        const top10 = data.slice(0, 10);
+        const labels = top10.map(d => d.name && d.name.length > 20 ? d.name.substring(0, 18) + '...' : (d.name || 'Unknown'));
+        const densities = top10.map(d => d.density || 0);
+        
+        const barCtx = document.getElementById('densityBarChart');
+        if (barCtx) {
+            if (barChart) barChart.destroy();
+            barChart = new Chart(barCtx, {
+                type: 'bar',
+                data: { 
+                    labels: labels, 
+                    datasets: [{ 
+                        label: 'Плотность (зав/км²)', 
+                        data: densities, 
+                        backgroundColor: 'rgba(203, 24, 29, 0.7)', 
+                        borderRadius: 6 
+                    }] 
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: true, 
+                    plugins: { legend: { display: false } }, 
+                    scales: { y: { beginAtZero: true, title: { display: true, text: 'заведений / км²' } } } 
+                }
+            });
+        }
+        
+        const top8 = data.slice(0, 8);
+        const otherCount = data.slice(8).reduce((sum, d) => sum + (d.business_count || 0), 0);
+        const donutLabels = [...top8.map(d => d.name && d.name.length > 15 ? d.name.substring(0, 12) + '...' : (d.name || 'Unknown')), 'Остальные'];
+        const donutValues = [...top8.map(d => d.business_count || 0), otherCount];
+        
+        const donutCtx = document.getElementById('donutChart');
+        if (donutCtx) {
+            if (donutChart) donutChart.destroy();
+            donutChart = new Chart(donutCtx, {
+                type: 'doughnut',
+                data: { 
+                    labels: donutLabels, 
+                    datasets: [{ 
+                        data: donutValues, 
+                        backgroundColor: ['#cb181d', '#fb6a4a', '#fcae91', '#fee5d9', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa', '#94a3b8'] 
+                    }] 
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: true, 
+                    plugins: { legend: { position: 'right', labels: { font: { size: 9 } } } } 
+                }
+            });
+        }
+    }
+    
+    function updateRanking(data) {
+        if (!data || data.length === 0) {
+            document.getElementById('rankingList').innerHTML = '<div style="padding: 20px; text-align: center; color: #94a3b8;">Нет данных для отображения</div>';
+            return;
+        }
+        
+        const metric = document.getElementById('metricSelect').value;
+        const sorted = [...data].sort((a, b) => metric === 'density' ? (b.density || 0) - (a.density || 0) : (b.business_count || 0) - (a.business_count || 0));
+        
+        const html = sorted.map((d, idx) => {
+            let rankClass = idx === 0 ? 'top-1' : idx === 1 ? 'top-2' : idx === 2 ? 'top-3' : '';
+            const value = metric === 'density' ? `${(d.density || 0).toFixed(1)} зав/км²` : `${(d.business_count || 0).toLocaleString()} заведений`;
+            const safeName = (d.name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            return `<div class="ranking-item" onclick="zoomToDistrict('${safeName}')">
+                        <div class="rank ${rankClass}">${idx + 1}</div>
+                        <div class="district-info">
+                            <div class="district-name">${d.name || 'Unknown'}</div>
+                            <div class="district-meta">${d.state || ''} | ${(d.area_sqkm || 0).toFixed(0)} км²</div>
+                        </div>
+                        <div class="density-value">${value}</div>
+                    </div>`;
+        }).join('');
+        document.getElementById('rankingList').innerHTML = html;
+    }
+    
+    function zoomToDistrict(districtName) {
+        if (!choroplethLayer) return;
+        let targetLayer = null;
+        choroplethLayer.eachLayer(layer => {
+            if (layer.feature?.properties?.county_name === districtName) {
+                targetLayer = layer;
+            }
+        });
+        if (targetLayer) {
+            map.fitBounds(targetLayer.getBounds());
+        }
+    }
+    
+    function zoomToAll() {
+        map.setView([39.8283, -98.5795], 5);
+    }
+    
+    function refreshLabelsOnMove() {
+        if (currentGeoJsonData && choroplethLayer) {
+            addCountyLabels(currentGeoJsonData);
+        }
+    }
+    
+    function initMap() {
+        // Используем оригинальный провайдер карт
+        map = L.map('map').setView([39.8283, -98.5795], 5);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { 
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors', 
+            subdomains: 'abcd', 
+            maxZoom: 19 
+        }).addTo(map);
+        
+        map.on('moveend', () => {
+            loadChoroplethData();
+        });
+        map.on('zoomend', () => {
+            loadChoroplethData();
+        });
+        
+        document.getElementById('metricSelect').addEventListener('change', () => updateRanking(currentData));
+        document.getElementById('refreshBtn').addEventListener('click', () => loadChoroplethData());
+        
+        const panel = document.getElementById('analysisPanel');
+        const toggle = document.getElementById('panelToggle');
+        const legend = document.getElementById('legend');
+        const controls = document.getElementById('controls');
+        
+        let isPanelCollapsed = false;
+        toggle.addEventListener('click', () => {
+            isPanelCollapsed = !isPanelCollapsed;
+            if (isPanelCollapsed) {
+                panel.classList.add('collapsed');
+                toggle.textContent = '◀';
+                if (legend) legend.classList.add('shifted');
+                if (controls) controls.classList.add('shifted');
+            } else {
+                panel.classList.remove('collapsed');
+                toggle.textContent = '▶';
+                if (legend) legend.classList.remove('shifted');
+                if (controls) controls.classList.remove('shifted');
+            }
+            setTimeout(() => {
+                map.invalidateSize();
+                refreshLabelsOnMove();
+            }, 300);
+        });
+        
+        loadChoroplethData();
+    }
+    
+    window.zoomToDistrict = zoomToDistrict;
+    window.zoomToAll = zoomToAll;
+    window.toggleChart = toggleChart;
+    
+    initMap();
+</script>
+</body>
+</html>
