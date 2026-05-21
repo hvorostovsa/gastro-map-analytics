@@ -8,14 +8,17 @@ from cuisine_analytics import router as cuisine_router
 from demand_forecast import router as demand_router
 from border import router as border_router
 from market_forecast import router as market_router
+from request_timing import router as timing_router, timing_middleware
 
 app = FastAPI()
+app.middleware("http")(timing_middleware)
 app.include_router(border_router)
 app.include_router(geo_router)
 app.include_router(analytics_router)
 app.include_router(cuisine_router)
 app.include_router(demand_router)
 app.include_router(market_router)
+app.include_router(timing_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # for dev only
