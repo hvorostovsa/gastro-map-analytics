@@ -224,6 +224,14 @@
             height: 420px !important;
         }
 
+        .layout.show-charts .sidebar .ranking-chart-shell {
+            height: 300px;
+        }
+
+        .layout.show-charts .sidebar .ranking-chart-shell canvas {
+            height: 100% !important;
+        }
+
         .chart-placeholder {
             padding: 16px;
             text-align: center;
@@ -259,6 +267,27 @@
 
         .area-chart-shell {
             height: 380px;
+        }
+
+        .topn-chart-shell {
+            height: 340px;
+        }
+
+        .ranking-chart-shell {
+            height: 340px;
+            margin-bottom: 6px;
+        }
+
+        .ranking-chart-shell.compact {
+            height: 340px;
+        }
+
+        .ranking-chart-shell.expanded {
+            height: 340px;
+        }
+
+        .topn-chart-summary {
+            margin: 0 0 8px;
         }
 
         .forecast-grid {
@@ -472,6 +501,7 @@
                 </div>
                 <div style="display:flex; align-items:flex-end;">
                     <button class="primary" id="refreshReviewsMapBtn">Обновить карту</button>
+                    <button class="primary" id="openTopNChartBtn" style="margin-left: 8px;">Top N график</button>
                 </div>
                 <p class="hint">Точки строятся по метрикам после нажатия «Посчитать метрики» (вкладка графиков).</p>
             </div>
@@ -575,6 +605,28 @@
                 </div>
                 <p class="hint">Не завышай max_reviews_per_business / max_total_reviews — анализ может быть очень долгим.</p>
                 <div class="status" id="reviewsStatus"></div>
+            </div>
+
+            <div class="card chart-card">
+                <div class="chart-actions">
+                    <h3>Top N заведений по метрике</h3>
+                </div>
+                <p class="hint ranking-chart-summary" id="reviewsTopNChartSummary">Сюда попадут уже посчитанные бизнесы из кеша метрик.</p>
+                <div class="chart-placeholder" id="topNPlaceholder">Сначала нажми «Посчитать метрики», затем открой график Top N.</div>
+                <div class="chart-shell topn-chart-shell ranking-chart-shell">
+                    <canvas id="reviewsTopNChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card chart-card">
+                <div class="chart-actions">
+                    <h3>Худшие N заведений по метрике</h3>
+                </div>
+                <p class="hint ranking-chart-summary" id="reviewsWorstNChartSummary">Нижний график строится из того же кеша метрик, но в обратном порядке.</p>
+                <div class="chart-placeholder" id="worstNPlaceholder">Сначала нажми «Посчитать метрики», затем открой график худших N.</div>
+                <div class="chart-shell topn-chart-shell ranking-chart-shell">
+                    <canvas id="reviewsWorstNChart"></canvas>
+                </div>
             </div>
 
             <div class="card">
@@ -761,6 +813,7 @@ const showReviewTopN = document.getElementById('showReviewTopN');
 const reviewsHighlightMetric = document.getElementById('reviewsHighlightMetric');
 const reviewsTopN = document.getElementById('reviewsTopN');
 const refreshReviewsMapBtn = document.getElementById('refreshReviewsMapBtn');
+const openTopNChartBtn = document.getElementById('openTopNChartBtn');
 const reviewsCity = document.getElementById('reviewsCity');
 const reviewsLimit = document.getElementById('reviewsLimit');
 const reviewsMin = document.getElementById('reviewsMin');
@@ -775,6 +828,10 @@ const loadReviewsBtn = document.getElementById('loadReviewsBtn');
 const scatterPlaceholder = document.getElementById('scatterPlaceholder');
 const correlationPlaceholder = document.getElementById('correlationPlaceholder');
 const reviewsStatus = document.getElementById('reviewsStatus');
+const reviewsTopNChartSummary = document.getElementById('reviewsTopNChartSummary');
+const reviewsWorstNChartSummary = document.getElementById('reviewsWorstNChartSummary');
+const topNPlaceholder = document.getElementById('topNPlaceholder');
+const worstNPlaceholder = document.getElementById('worstNPlaceholder');
 const toggleCuisineFullscreen = document.getElementById('toggleCuisineFullscreen');
 const reviewsBusinessName = document.getElementById('reviewsBusinessName');
 const reviewsBusinessStatus = document.getElementById('reviewsBusinessStatus');
@@ -831,7 +888,13 @@ let cuisineMarkerRequestId = 0;
 let activeCuisineHeatmap = null;
 let reviewsScatterChart = null;
 let reviewsCorrelationChart = null;
+let reviewsTopNChart = null;
+let reviewsWorstNChart = null;
 let reviewsMapCorrelationChart = null;
+const reviewRankingCharts = {
+    top: null,
+    worst: null
+};
 let forecastMainChart = null;
 let forecastFeaturesChart = null;
 let dualForecastCharts = [null, null];
@@ -1011,7 +1074,19 @@ function updateCharts(data) {
                 easing: 'easeOutQuart'
             },
             plugins: {
-                legend: { display: false }
+                legend: {
+                    display: true,
+                    position: 'right',
+                    labels: {
+                        color: '#1e293b',
+                        font: {
+                            size: 12
+                        },
+                        padding: 14,
+                        usePointStyle: true,
+                        pointStyle: 'circle'
+                    }
+                }
             },
             onClick: (_evt, items) => handleChartClick(items, labels)
         }
@@ -2055,6 +2130,43 @@ function getMetricValue(item, metric) {
     return Number(value);
 }
 
+function getReviewBusinessId(item) {
+    return item.business_id || item.businessId || item.id || null;
+}
+
+function formatMetricDisplayValue(value, metric) {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) {
+        return '-';
+    }
+
+    const numericValue = Number(value);
+    if (metric === 'review_count') {
+        return Math.round(numericValue).toLocaleString('en-US');
+    }
+
+    return numericValue.toFixed(2);
+}
+
+function getTopReviewItems(items, metric, topN) {
+    const limit = Math.max(0, Number(topN) || 0);
+    return [...items]
+        .map(item => ({ item, value: getMetricValue(item, metric) }))
+        .filter(entry => Number.isFinite(entry.value))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, limit)
+        .map(entry => entry.item);
+}
+
+function getWorstReviewItems(items, metric, topN) {
+    const limit = Math.max(0, Number(topN) || 0);
+    return [...items]
+        .map(item => ({ item, value: getMetricValue(item, metric) }))
+        .filter(entry => Number.isFinite(entry.value))
+        .sort((a, b) => a.value - b.value)
+        .slice(0, limit)
+        .map(entry => entry.item);
+}
+
 function getMarkerRadius(zoom, isTop) {
     const base = Math.max(3, 10 - (zoom - 10));
     const scale = isTop ? 1.8 : 1.0;
@@ -2090,12 +2202,7 @@ function renderReviewMarkers(items) {
     const isTopEnabled = showReviewTopN.checked;
 
     const valid = items.filter(item => item.latitude !== null && item.latitude !== undefined && item.longitude !== null && item.longitude !== undefined);
-    const sorted = [...valid].sort((a, b) => {
-        const av = getMetricValue(a, metric) ?? -Infinity;
-        const bv = getMetricValue(b, metric) ?? -Infinity;
-        return bv - av;
-    });
-    const topIds = isTopEnabled ? new Set(sorted.slice(0, topN).map(item => item.business_id)) : new Set();
+    const topIds = isTopEnabled ? new Set(getTopReviewItems(valid, metric, topN).map(item => getReviewBusinessId(item))) : new Set();
 
     if (reviewsComputedMarkerLayer) {
         map.removeLayer(reviewsComputedMarkerLayer);
@@ -2138,7 +2245,7 @@ function renderReviewMarkers(items) {
         marker.bindPopup(popupHtml);
         marker.bindTooltip(popupHtml, { direction: 'top', sticky: true });
 
-        const businessId = item.business_id || item.businessId || item.id || null;
+        const businessId = getReviewBusinessId(item);
         if (businessId) {
             reviewsComputedMarkersById.set(businessId, marker);
         }
@@ -2155,6 +2262,159 @@ function renderReviewMarkers(items) {
     topMarkers.forEach(marker => reviewsComputedMarkerLayer.addLayer(marker));
 
     reviewsComputedMarkerLayer.addTo(map);
+}
+
+function renderRankingReviewChart({
+    items,
+    chartId,
+    chartKey,
+    summaryElement,
+    placeholderElement,
+    titleLabel,
+    emptyLabel,
+    comparator
+}) {
+    const chartCanvas = document.getElementById(chartId);
+    if (!chartCanvas) {
+        return;
+    }
+
+    const metric = reviewsHighlightMetric.value;
+    const topN = Number(reviewsTopN.value || 10);
+    const rankItems = comparator(items || [], metric, topN);
+
+    if (reviewRankingCharts[chartKey]) {
+        reviewRankingCharts[chartKey].destroy();
+        reviewRankingCharts[chartKey] = null;
+    }
+
+    if (!rankItems.length) {
+        if (summaryElement) {
+            summaryElement.textContent = emptyLabel;
+        }
+        if (placeholderElement) {
+            placeholderElement.style.display = 'block';
+        }
+        chartCanvas.style.display = 'none';
+        return;
+    }
+
+    const labels = rankItems.map(item => item.name || getReviewBusinessId(item) || 'Unknown');
+    const values = rankItems.map(item => getMetricValue(item, metric));
+    const chartShell = chartCanvas.closest('.ranking-chart-shell');
+    const chartHeight = Math.max(340, 130 + (rankItems.length * 26));
+    if (chartShell) {
+        chartShell.style.height = `${chartHeight}px`;
+        chartShell.classList.toggle('compact', rankItems.length <= 10);
+        chartShell.classList.toggle('expanded', rankItems.length > 10);
+    }
+
+    if (summaryElement) {
+        summaryElement.textContent = titleLabel.replace('{count}', String(rankItems.length)).replace('{metric}', metric);
+    }
+    if (placeholderElement) {
+        placeholderElement.style.display = 'none';
+    }
+    chartCanvas.style.display = 'block';
+
+    const chart = new Chart(chartCanvas, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: metric,
+                data: values,
+                backgroundColor: 'rgba(37, 99, 235, 0.75)',
+                borderColor: '#1d4ed8',
+                borderWidth: 1,
+                borderRadius: 6,
+                maxBarThickness: 18,
+                categoryPercentage: 0.75,
+                barPercentage: 0.75
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: {
+                padding: {
+                    top: 20,
+                    right: 14,
+                    bottom: 20,
+                    left: 14
+                }
+            },
+            animation: {
+                duration: 800,
+                easing: 'easeOutQuart'
+            },
+            interaction: {
+                mode: 'nearest',
+                intersect: true,
+                axis: 'y'
+            },
+            scales: {
+                x: {
+                    beginAtZero: false,
+                    grace: '18%',
+                    grid: { color: 'rgba(148, 163, 184, 0.2)' },
+                    ticks: {
+                        callback: value => formatMetricDisplayValue(value, metric)
+                    }
+                },
+                y: {
+                    grid: { display: false },
+                    offset: true,
+                    ticks: {
+                        padding: 8,
+                        font: {
+                            size: rankItems.length > 10 ? 11 : 12
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    mode: 'nearest',
+                    intersect: true,
+                    axis: 'y',
+                    callbacks: {
+                        label: ctxItem => `${metric}: ${formatMetricDisplayValue(ctxItem.parsed.x, metric)}`
+                    }
+                }
+            }
+        }
+    });
+
+    reviewRankingCharts[chartKey] = chart;
+}
+
+function renderTopNReviewChart(items) {
+    renderRankingReviewChart({
+        items,
+        chartId: 'reviewsTopNChart',
+        chartKey: 'top',
+        summaryElement: reviewsTopNChartSummary,
+        placeholderElement: topNPlaceholder,
+        titleLabel: 'Top {count} по {metric} из кеша метрик. Карта использует тот же порядок для подсветки.',
+        emptyLabel: `Нет данных для top ${Number(reviewsTopN.value || 10)} по метрике ${reviewsHighlightMetric.value}.`,
+        comparator: getTopReviewItems
+    });
+}
+
+function renderWorstNReviewChart(items) {
+    renderRankingReviewChart({
+        items,
+        chartId: 'reviewsWorstNChart',
+        chartKey: 'worst',
+        summaryElement: reviewsWorstNChartSummary,
+        placeholderElement: worstNPlaceholder,
+        titleLabel: 'Bottom {count} по {metric} из кеша метрик. Это худшие значения среди уже посчитанных бизнесов.',
+        emptyLabel: `Нет данных для худших ${Number(reviewsTopN.value || 10)} по метрике ${reviewsHighlightMetric.value}.`,
+        comparator: getWorstReviewItems
+    });
 }
 
 async function loadReviewBaseMarkers() {
@@ -2355,6 +2615,8 @@ async function updateReviewsMap() {
     await loadReviewBaseMarkers();
     // Then render computed markers (top N / blue) above them
     renderReviewMarkers(reviewsMetricsCache);
+    renderTopNReviewChart(reviewsMetricsCache);
+    renderWorstNReviewChart(reviewsMetricsCache);
 }
 
 async function loadReviewAnalytics() {
@@ -2398,6 +2660,8 @@ async function loadReviewAnalytics() {
         toggleChartVisibility();
         renderScatter(metricsItems);
         renderReviewMarkers(metricsItems);
+        renderTopNReviewChart(metricsItems);
+        renderWorstNReviewChart(metricsItems);
         setReviewsStatus(`Метрики загружены: ${metricsItems.length} бизнесов. Корреляция считается автоматически.`, false);
     } catch (err) {
         setReviewsStatus(`Ошибка метрик: ${err.message}`, true);
@@ -2762,6 +3026,16 @@ showReviewTopN.addEventListener("change", updateReviewsMap);
 reviewsHighlightMetric.addEventListener("change", updateReviewsMap);
 reviewsTopN.addEventListener("change", updateReviewsMap);
 refreshReviewsMapBtn.addEventListener("click", updateReviewsMap);
+if (openTopNChartBtn) {
+    openTopNChartBtn.addEventListener("click", () => {
+        const chartsTab = document.querySelector('.tab[data-panel="reviewsChartsPanel"]');
+        if (chartsTab) {
+            chartsTab.click();
+        }
+        renderTopNReviewChart(reviewsMetricsCache);
+        renderWorstNReviewChart(reviewsMetricsCache);
+    });
+}
 if (loadForecastBtn) {
     loadForecastBtn.addEventListener("click", loadForecast);
 }
@@ -2824,6 +3098,11 @@ tabs.forEach(tab => {
             if (showTopCuisineAreas) {
                 showTopCuisineAreas.checked = false;
             }
+        }
+
+        if (panelId === 'reviewsChartsPanel') {
+            renderTopNReviewChart(reviewsMetricsCache);
+            renderWorstNReviewChart(reviewsMetricsCache);
         }
 
         refreshMap();
