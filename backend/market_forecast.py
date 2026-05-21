@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from math import log1p
-from typing import Any, DefaultDict, Mapping, cast
+from typing import Any, DefaultDict, Literal, Mapping, cast
 from collections import defaultdict
 
 from fastapi import APIRouter, Query
@@ -11,6 +11,8 @@ from db import execute_query
 
 
 router = APIRouter(prefix="/api/market", tags=["market"])
+
+ForecastMethod = Literal["linear_all", "weighted"]
 
 
 def _split_csv(values: list[str] | None) -> list[str]:
@@ -215,7 +217,7 @@ def _compute_county_market(
     lookback_years: int,
     random_n: int | None,
     as_of_year: int | None = None,
-    forecast_method: str = "linear_recent",
+    forecast_method: ForecastMethod = "linear_all",
 ) -> list[dict[str, Any]]:
     current_year = int(as_of_year) if as_of_year is not None else int(datetime.utcnow().year)
     start_year = current_year - max(1, int(lookback_years)) + 1
@@ -336,8 +338,8 @@ def market_forecast(
     states: list[str] | None = Query(None),
     geoids: list[str] | None = Query(None),
     random_n: int | None = Query(None, ge=1, le=5000),
-    as_of_year: int | None = Query(None, ge=1900, le=9999),
-    forecast_method: str = Query("linear_all", regex="^(linear_all|weighted)$"),
+    as_of_year: int = Query(2021, ge=1900, le=2021),
+    forecast_method: ForecastMethod = Query("linear_all", pattern="^(linear_all|weighted)$"),
 ):
     state_list = _split_csv(states)
     geoid_list = _split_csv(geoids)
