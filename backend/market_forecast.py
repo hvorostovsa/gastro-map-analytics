@@ -294,32 +294,27 @@ def _compute_county_market(
         years = float(max(1, years_ahead))
         activity_scaled = _scale_01([log1p(float(r["open_restaurants"]) or 0.0) for r in out])
         density_scaled = _scale_01([float(r["density_per_km2"] or 0.0) for r in out])
-
-        # growth relative to current restaurants: (new per year) / (current count)
-        growth_values: list[float] = []
-        for r in out:
-            open_r = float(r.get("open_restaurants") or 0.0)
-            per_year = float(r.get("forecast_total_opened_next_years") or 0.0) / years
-            growth_rel = per_year / max(1.0, open_r)
-            growth_values.append(growth_rel)
-
-        growth_scaled = _scale_01(growth_values)
+        growth_scaled = _scale_01([float(r["forecast_total_opened_next_years"]) / years for r in out])
 
         for idx, row in enumerate(out):
+            activity = activity_scaled[idx]
             density = density_scaled[idx]
             growth = growth_scaled[idx]
-            open_restaurants = float(row.get("open_restaurants") or 0.0)
+            open_restaurants = float(row["open_restaurants"] or 0.0)
 
-            density_comp = 1.0 - density
-            growth_comp = 1.0 - growth
-
-            # strong decaying penalty for very low absolute counts (visible under ~100)
-            low_count_penalty = (1.0 / (1.0 + (open_restaurants / 100.0) ** 3)) * density_comp
+            low_activity_penalty = (1.0 - activity) ** 1.8
+            density_penalty = density ** 1.7
+            growth_penalty = growth ** 1.4
+            low_count_penalty = (1.0 / (1.0 + (open_restaurants / 75.0) ** 1.6))
 
             score = 100.0 * (
-                0.6 * density_comp
-                + 0.4 * growth_comp
-                - 0.9 * low_count_penalty
+                0.55 * activity
+                + 0.25 * (1.0 - density)
+                + 0.20 * (1.0 - growth)
+                - 0.18 * low_activity_penalty
+                - 0.22 * density_penalty
+                - 0.10 * growth_penalty
+                - 0.22 * low_count_penalty
             )
 
             row["recommendation_score"] = float(max(0.0, min(100.0, score)))
