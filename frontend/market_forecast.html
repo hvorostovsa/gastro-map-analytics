@@ -341,9 +341,15 @@
             min-height: 100vh;
         }
 
-        #map {
+        .map-stage {
+            position: relative;
             width: 100%;
             height: 100vh;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
         }
 
         .map-topbar {
@@ -376,8 +382,8 @@
 
         .legend {
             position: absolute;
-            left: 18px;
-            bottom: 18px;
+            left: 22px;
+            bottom: 22px;
             z-index: 1100;
             background: rgba(255, 255, 255, 0.92);
             border: 1px solid rgba(148, 163, 184, 0.18);
@@ -385,6 +391,7 @@
             padding: 12px 14px;
             box-shadow: var(--shadow);
             min-width: 210px;
+            max-width: calc(100% - 44px);
         }
 
         .legend-title {
@@ -600,7 +607,7 @@
             <div class="brand">
                 <div class="eyebrow">Market Forecast</div>
                 <h1>Где открываться дальше</h1>
-                <p class="subtitle">Один endpoint. Плотность, история, прогноз открытия и recommendation score для каждого округа.</p>
+                <p class="subtitle">Плотность, история, прогноз открытия и recommendation score для каждого округа.</p>
             </div>
 
             <div class="card">
@@ -702,23 +709,25 @@
         </aside>
 
         <section class="map-wrap">
-            <div class="map-topbar">
-                <div style="display:flex;gap:8px;align-items:center;">
-                    <div class="topbar-pill" id="mapPill">Ожидание данных</div>
-                    <div class="topbar-pill" id="focusPill">Фокус: весь набор</div>
+            <div class="map-stage">
+                <div class="map-topbar">
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <div class="topbar-pill" id="mapPill">Ожидание данных</div>
+                        <div class="topbar-pill" id="focusPill">Фокус: весь набор</div>
+                    </div>
+                    <div>
+                        <button class="ghost" id="openChartsBtn">Charts</button>
+                    </div>
                 </div>
-                <div>
-                    <button class="ghost" id="openChartsBtn">Charts</button>
+                <div id="map"></div>
+                <div class="legend" id="legend">
+                    <div class="legend-title" id="legendTitle">Recommendation score</div>
+                    <div class="legend-row"><span class="legend-swatch" style="background:#064e3b;"></span>Высокий</div>
+                    <div class="legend-row"><span class="legend-swatch" style="background:#059669;"></span>Хороший</div>
+                    <div class="legend-row"><span class="legend-swatch" style="background:#eab308;"></span>Средний</div>
+                    <div class="legend-row"><span class="legend-swatch" style="background:#f97316;"></span>Слабый</div>
+                    <div class="legend-row"><span class="legend-swatch" style="background:#991b1b;"></span>Плохой</div>
                 </div>
-            </div>
-            <div id="map"></div>
-            <div class="legend" id="legend">
-                <div class="legend-title" id="legendTitle">Recommendation score</div>
-                <div class="legend-row"><span class="legend-swatch" style="background:#064e3b;"></span>Высокий</div>
-                <div class="legend-row"><span class="legend-swatch" style="background:#059669;"></span>Сильный</div>
-                <div class="legend-row"><span class="legend-swatch" style="background:#eab308;"></span>Средний</div>
-                <div class="legend-row"><span class="legend-swatch" style="background:#f97316;"></span>Слабый</div>
-                <div class="legend-row"><span class="legend-swatch" style="background:#991b1b;"></span>Плохой</div>
             </div>
         </section>
     </div>
