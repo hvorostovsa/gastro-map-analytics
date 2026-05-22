@@ -36,6 +36,29 @@
             box-shadow: 0 0 20px rgba(15, 23, 42, 0.06);
         }
 
+        .hub-row {
+            display: flex;
+            margin-bottom: 12px;
+        }
+
+        .hub-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            color: #1d4ed8;
+            background: rgba(37, 99, 235, 0.08);
+            border: 1px solid rgba(37, 99, 235, 0.14);
+            border-radius: 999px;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .hub-link:hover {
+            background: rgba(37, 99, 235, 0.14);
+        }
+
         .card {
             background: #ffffff;
             border: 1px solid #e2e8f0;
@@ -232,6 +255,9 @@
 <div class="layout">
     <div id="map"></div>
     <aside class="sidebar">
+        <div class="hub-row">
+            <a class="hub-link" href="index.html">← В хаб</a>
+        </div>
         <div class="card">
             <h3>Классификация кухонь</h3>
             <label for="cuisineSelect">Выберите кухню</label>
@@ -595,7 +621,7 @@ async function renderCuisineBusinessHeatmap(cuisine) {
     const bbox = getBBox();
     const url = new URL(`${API_BASE}/api/analytics/cuisines/map`);
     url.searchParams.set('bbox', bbox);
-    url.searchParams.set('limit', '20000');
+    url.searchParams.set('limit', '4000');
     url.searchParams.set('cuisine', cuisine);
 
     const response = await fetch(url);
@@ -753,7 +779,7 @@ async function loadMarkers() {
     const cuisine = cuisineSelect.value;
     const url = new URL(`${API_BASE}/api/analytics/cuisines/map`);
     url.searchParams.set('bbox', bbox);
-    url.searchParams.set('limit', cuisine ? '800' : '20000');
+    url.searchParams.set('limit', cuisine ? '800' : '2500');
     if (cuisine) {
         url.searchParams.set('cuisine', cuisine);
     }
