@@ -1,0 +1,1520 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reviews Analytics Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg: #f8fafc;
+            --panel: rgba(255, 255, 255, 0.96);
+            --panel-border: rgba(148, 163, 184, 0.22);
+            --text: #0f172a;
+            --muted: #64748b;
+            --accent: #2563eb;
+            --accent-2: #38bdf8;
+            --shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Segoe UI", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top left, rgba(56, 189, 248, 0.14), transparent 32%),
+                radial-gradient(circle at bottom right, rgba(37, 99, 235, 0.12), transparent 28%),
+                linear-gradient(135deg, var(--bg), #eef2ff);
+        }
+
+        .layout {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #map {
+            flex: 1;
+        }
+
+        .sidebar {
+            width: 420px;
+            padding: 16px;
+            overflow-y: auto;
+            border-left: 1px solid rgba(148, 163, 184, 0.18);
+            background: rgba(255, 255, 255, 0.86);
+            backdrop-filter: blur(14px);
+            box-shadow: 0 0 20px rgba(15, 23, 42, 0.06);
+        }
+
+        .hub-row {
+            display: flex;
+            margin-bottom: 12px;
+        }
+
+        .hub-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            text-decoration: none;
+            color: #1d4ed8;
+            background: rgba(37, 99, 235, 0.08);
+            border: 1px solid rgba(37, 99, 235, 0.14);
+            font-size: 13px;
+        }
+
+        .brand {
+            margin-bottom: 14px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            width: fit-content;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(37, 99, 235, 0.08);
+            color: #1d4ed8;
+            border: 1px solid rgba(37, 99, 235, 0.14);
+            font-size: 12px;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            margin: 0;
+            line-height: 1.04;
+            font-size: 28px;
+            letter-spacing: -0.03em;
+        }
+
+        .subtitle {
+            margin: 0;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            padding: 14px;
+            margin-bottom: 14px;
+        }
+
+        .card h2,
+        .card h3 {
+            margin: 0 0 10px;
+            font-size: 16px;
+            letter-spacing: -0.02em;
+        }
+
+        .hint {
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.45;
+            margin: 0;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px 12px;
+            align-items: start;
+        }
+
+        .field {
+            display: grid;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 12px;
+            color: #334155;
+        }
+
+        input,
+        select,
+        button {
+            font: inherit;
+        }
+
+        input,
+        select {
+            width: 100%;
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.32);
+            background: #f8fafc;
+            color: var(--text);
+            padding: 10px 12px;
+            outline: none;
+        }
+
+        input:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        button {
+            border: 0;
+            border-radius: 12px;
+            padding: 11px 14px;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+        }
+
+        button.primary {
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            color: #ffffff;
+            font-weight: 700;
+            box-shadow: 0 12px 24px rgba(37, 99, 235, 0.24);
+        }
+
+        button.ghost {
+            background: #ffffff;
+            color: #0f172a;
+            border: 1px solid rgba(148, 163, 184, 0.22);
+        }
+
+        .toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .toggle label {
+            margin: 0;
+        }
+
+        .toggle input {
+            width: auto;
+            padding: 0;
+        }
+
+        .status {
+            font-size: 12px;
+            color: var(--muted);
+            min-height: 18px;
+        }
+
+        .chart-placeholder {
+            padding: 16px;
+            text-align: center;
+            background: #f8fafc;
+            border-radius: 16px;
+            border: 1px dashed #cbd5f5;
+            color: #64748b;
+        }
+
+        .chart-shell {
+            position: relative;
+            width: 100%;
+            background: #f8fafc;
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .chart-shell canvas {
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
+            background: transparent;
+            border-radius: 16px;
+        }
+
+        .ranking-chart-shell {
+            height: 340px;
+            margin-bottom: 6px;
+        }
+
+        .ranking-chart-shell.compact {
+            height: 340px;
+        }
+
+        .ranking-chart-shell.expanded {
+            height: 340px;
+        }
+
+        .sidebar canvas {
+            width: 100% !important;
+            height: 260px !important;
+            background: #f8fafc;
+            border-radius: 12px;
+        }
+
+        .report-card {
+            margin-top: 10px;
+            padding: 12px;
+            background: #f1f5f9;
+            border-radius: 12px;
+            border: 1px solid #cbd5f5;
+        }
+
+        .report-card.hidden {
+            display: none;
+        }
+
+        .line-toggle-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 14px;
+            margin: 8px 0 10px;
+        }
+
+        .map-section,
+        .charts-section {
+            margin-bottom: 14px;
+        }
+
+        .chart-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .chart-actions button {
+            background: #0f172a;
+            color: #ffffff;
+            border: none;
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .summary-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .summary-row > * {
+            flex: 1;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            border: 1px solid #cbd5f5;
+            background: #f1f5f9;
+            padding: 8px 12px;
+            border-radius: 999px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .tab.active {
+            background: linear-gradient(135deg, #2563eb, #38bdf8);
+            color: #ffffff;
+            border-color: #2563eb;
+            box-shadow: 0 8px 16px rgba(37, 99, 235, 0.3);
+        }
+
+        .panel {
+            display: none;
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        
+        .layout.charts-fullscreen #map { display:none; }
+        .layout.charts-fullscreen .sidebar { width:100vw; height:100vh; max-width:none; border-left:none; padding:0; }
+        .layout.charts-fullscreen .charts-section,.layout.charts-fullscreen #reviewsChartsCard { width:100%; height:100vh; margin:0; border-radius:0; padding:20px; overflow-y:auto; }
+        .layout.charts-fullscreen .chart-card { width:100%; }
+        .layout.charts-fullscreen .chart-shell,.layout.charts-fullscreen .ranking-chart-shell { height:80vh !important; }
+        .layout.charts-fullscreen canvas { width:100% !important; height:100% !important; }
+        .layout.charts-fullscreen #reviewsScatterChart,.layout.charts-fullscreen #reviewsCorrelationChart { height:80vh !important; }
+
+@media (max-width: 1100px) {
+            .layout {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                border-left: 0;
+                border-top: 1px solid rgba(148, 163, 184, 0.18);
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <div id="map"></div>
+
+    <aside class="sidebar">
+        <div class="hub-row">
+            <a class="hub-link" href="index.html">← В хаб</a>
+        </div>
+
+        <div class="brand">
+            <span class="eyebrow">Reviews</span>
+            <h1>Отзывы</h1>
+            <p class="subtitle">Карта слева, справа карта метрик, корреляции и графики по отзывам.</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" data-panel="reviewsMapPanel">Карта</button>
+            <button class="tab" data-panel="reviewsChartsPanel">Графики</button>
+        </div>
+
+        <section class="panel active" id="reviewsMapPanel">
+        <section class="card map-section" id="reviewsMapCard">
+            <h2>Отзывы: карта метрик</h2>
+            <div class="grid-2">
+                <div class="toggle">
+                    <input type="checkbox" id="showReviewMarkers" checked />
+                    <label for="showReviewMarkers">Показывать метрики на карте</label>
+                </div>
+                <div class="toggle">
+                    <input type="checkbox" id="showReviewBase" checked />
+                    <label for="showReviewBase">Показывать рестораны</label>
+                </div>
+                <div class="toggle">
+                    <input type="checkbox" id="showReviewTopN" checked />
+                    <label for="showReviewTopN">Показывать top N</label>
+                </div>
+            </div>
+            <div class="grid-2" style="margin-top: 10px;">
+                <div class="field">
+                    <label for="reviewsHighlightMetric">Выделять по метрике</label>
+                    <select id="reviewsHighlightMetric">
+                        <option value="avg_sentiment" selected>avg_sentiment</option>
+                        <option value="avg_stars">avg_stars</option>
+                        <option value="avg_review_length">avg_review_length</option>
+                        <option value="reviews_per_month">reviews_per_month</option>
+                        <option value="review_count">review_count</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="reviewsTopN">Top N</label>
+                    <input id="reviewsTopN" type="number" value="10" min="3" max="100" />
+                </div>
+            </div>
+            <div class="summary-row" style="margin-top: 10px;">
+                <button class="primary" id="refreshReviewsMapBtn">Обновить карту</button>
+                <button class="primary" id="openTopNChartBtn">Top N график</button>
+            </div>
+            <p class="hint" style="margin-top: 8px;">Точки строятся по метрикам после нажатия «Посчитать метрики» в блоке графиков ниже.</p>
+        </section>
+
+        <section class="card">
+            <h3>Легенда</h3>
+            <p class="hint">Серые точки — рестораны, красные — top N по метрике, синие — остальные.</p>
+        </section>
+
+        <section class="card" id="reviewsBusinessCard">
+            <h3>Выбранный бизнес</h3>
+            <div class="hint" id="reviewsBusinessName">Кликни по точке, чтобы выбрать бизнес.</div>
+            <div class="status" id="reviewsBusinessStatus">Статус корреляции появится здесь.</div>
+            <div style="margin-top: 8px;">
+                <label for="corrBusinessId">Business ID (опц.)</label>
+                <input id="corrBusinessId" placeholder="_ab50qdWOk0DdB6XOrBitw" />
+            </div>
+            <div style="margin-top: 8px; display:flex; gap:8px;">
+                <button class="primary" id="mapCorrelationBtn">Корреляция</button>
+                <button class="primary" id="mapReportBtn">Показать отчет</button>
+            </div>
+            <div class="report-card hidden" id="mapReportCard">
+                <h4 style="margin: 0 0 8px;">Отчет по бизнесу</h4>
+                <div class="chart-placeholder" id="mapReportMessage">Нет данных для корреляции по выбранному бизнесу.</div>
+                <canvas id="reviewsMapCorrelationChart" class="sidebar-chart"></canvas>
+            </div>
+        </section>
+        </section>
+
+        <section class="panel" id="reviewsChartsPanel">
+        <section class="card charts-section" id="reviewsChartsCard">
+            <h2>Связь рейтингов и отзывов</h2>
+            <div class="grid-2">
+                <div class="field">
+                    <label for="reviewsCity">Город (опц.)</label>
+                    <input id="reviewsCity" placeholder="New Orleans" />
+                </div>
+                <div class="field">
+                    <label for="reviewsLimit">Бизнесы (limit)</label>
+                    <input id="reviewsLimit" type="number" value="1000" min="10" max="5000" />
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="field">
+                    <label for="reviewsMin">Мин. отзывов</label>
+                    <input id="reviewsMin" type="number" value="30" min="1" max="100000" />
+                </div>
+                <div class="field">
+                    <label for="reviewsMaxPer">Макс. отзывов/бизнес</label>
+                    <input id="reviewsMaxPer" type="number" value="300" min="50" max="5000" />
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="field">
+                    <label for="reviewsMaxTotal">Макс. всего отзывов</label>
+                    <input id="reviewsMaxTotal" type="number" value="300000" min="1000" max="2000000" />
+                </div>
+                <div class="field">
+                    <label for="scatterX">Scatter X</label>
+                    <select id="scatterX">
+                        <option value="avg_sentiment" selected>avg_sentiment</option>
+                        <option value="avg_stars">avg_stars</option>
+                        <option value="avg_review_length">avg_review_length</option>
+                        <option value="reviews_per_month">reviews_per_month</option>
+                        <option value="review_count">review_count</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="field">
+                    <label for="scatterY">Scatter Y</label>
+                    <select id="scatterY">
+                        <option value="avg_stars" selected>avg_stars</option>
+                        <option value="avg_sentiment">avg_sentiment</option>
+                        <option value="avg_review_length">avg_review_length</option>
+                        <option value="reviews_per_month">reviews_per_month</option>
+                        <option value="review_count">review_count</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="corrY">Correlation Y</label>
+                    <select id="corrY">
+                        <option value="avg_stars" selected>avg_stars</option>
+                        <option value="avg_sentiment">avg_sentiment</option>
+                        <option value="avg_review_length">avg_review_length</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="field">
+                    <label for="corrX">Correlation X</label>
+                    <select id="corrX">
+                        <option value="avg_sentiment" selected>avg_sentiment</option>
+                        <option value="avg_stars">avg_stars</option>
+                        <option value="avg_review_length">avg_review_length</option>
+                    </select>
+                </div>
+                <div style="display:flex; align-items:flex-end; margin-top:22px">
+                    <button class="primary" id="loadReviewsBtn" style="width:100%">Посчитать метрики</button>
+                </div>
+            </div>
+            <p class="hint">Не завышай max_reviews_per_business / max_total_reviews — анализ может быть очень долгим.</p>
+            <div class="status" id="reviewsStatus"></div>
+
+            <div class="card chart-card" style="margin-top: 14px;">
+                <div class="chart-actions">
+                    <h3>Top N заведений по метрике</h3>
+                </div>
+                <p class="hint ranking-chart-summary" id="reviewsTopNChartSummary">Сюда попадут уже посчитанные бизнесы из кеша метрик.</p>
+                <div class="chart-placeholder" id="topNPlaceholder">Сначала нажми «Посчитать метрики», затем открой график Top N.</div>
+                <div class="chart-shell ranking-chart-shell" id="topNChartShell">
+                    <canvas id="reviewsTopNChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card chart-card">
+                <div class="chart-actions">
+                    <h3>Худшие N заведений по метрике</h3>
+                </div>
+                <p class="hint ranking-chart-summary" id="reviewsWorstNChartSummary">Нижний график строится из того же кеша метрик, но в обратном порядке.</p>
+                <div class="chart-placeholder" id="worstNPlaceholder">Сначала нажми «Посчитать метрики», затем открой график худших N.</div>
+                <div class="chart-shell ranking-chart-shell" id="worstNChartShell">
+                    <canvas id="reviewsWorstNChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card chart-card">
+                <h3>Scatter: выбранные метрики</h3>
+                <div class="chart-placeholder" id="scatterPlaceholder">Сначала нажми «Посчитать метрики», чтобы построить график.</div>
+                <canvas id="reviewsScatterChart"></canvas>
+            </div>
+
+            <div class="card chart-card">
+                <h3>Корреляции по бизнесам</h3>
+                <div class="chart-placeholder" id="correlationPlaceholder">Корреляция считается автоматически после метрик.</div>
+                <canvas id="reviewsCorrelationChart"></canvas>
+            </div>
+        </section>
+        </section>
+    </aside>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+const API_BASE = "http://127.0.0.1:8000";
+const map = L.map('map').setView([39.9526, -75.1652], 12);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd',
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap & CARTO'
+}).addTo(map);
+
+const showReviewMarkers = document.getElementById('showReviewMarkers');
+const showReviewBase = document.getElementById('showReviewBase');
+const showReviewTopN = document.getElementById('showReviewTopN');
+const reviewsHighlightMetric = document.getElementById('reviewsHighlightMetric');
+const reviewsTopN = document.getElementById('reviewsTopN');
+const refreshReviewsMapBtn = document.getElementById('refreshReviewsMapBtn');
+const openTopNChartBtn = document.getElementById('openTopNChartBtn');
+const reviewsCity = document.getElementById('reviewsCity');
+const reviewsLimit = document.getElementById('reviewsLimit');
+const reviewsMin = document.getElementById('reviewsMin');
+const reviewsMaxPer = document.getElementById('reviewsMaxPer');
+const reviewsMaxTotal = document.getElementById('reviewsMaxTotal');
+const scatterX = document.getElementById('scatterX');
+const scatterY = document.getElementById('scatterY');
+const corrX = document.getElementById('corrX');
+const corrY = document.getElementById('corrY');
+const corrBusinessId = document.getElementById('corrBusinessId');
+const loadReviewsBtn = document.getElementById('loadReviewsBtn');
+const scatterPlaceholder = document.getElementById('scatterPlaceholder');
+const correlationPlaceholder = document.getElementById('correlationPlaceholder');
+const reviewsStatus = document.getElementById('reviewsStatus');
+const reviewsTopNChartSummary = document.getElementById('reviewsTopNChartSummary');
+const reviewsWorstNChartSummary = document.getElementById('reviewsWorstNChartSummary');
+const topNPlaceholder = document.getElementById('topNPlaceholder');
+const worstNPlaceholder = document.getElementById('worstNPlaceholder');
+const reviewsBusinessName = document.getElementById('reviewsBusinessName');
+const reviewsBusinessStatus = document.getElementById('reviewsBusinessStatus');
+const mapCorrelationBtn = document.getElementById('mapCorrelationBtn');
+const mapReportBtn = document.getElementById('mapReportBtn');
+const mapReportCard = document.getElementById('mapReportCard');
+const mapReportMessage = document.getElementById('mapReportMessage');
+const reviewsChartsCard = document.getElementById('reviewsChartsCard');
+
+let reviewsBaseMarkerLayer = null;
+let reviewsComputedMarkerLayer = null;
+let reviewsSelectedMarker = null;
+let reviewsBaseMarkersById = new Map();
+let reviewsComputedMarkersById = new Map();
+let selectedBusinessId = null;
+let reviewsMetricsCache = [];
+let selectedBusiness = null;
+let reviewsScatterChart = null;
+let reviewsCorrelationChart = null;
+let reviewsTopNChart = null;
+let reviewsWorstNChart = null;
+let reviewsMapCorrelationChart = null;
+const reviewRankingCharts = { top: null, worst: null };
+let reviewsMetricsReady = false;
+let correlationInProgress = false;
+let correlationReady = false;
+
+function debounce(fn, delay) {
+    let t;
+    return function(...args) {
+        clearTimeout(t);
+        t = setTimeout(() => fn(...args), delay);
+    };
+}
+
+function getBBox() {
+    const bounds = map.getBounds();
+    return [bounds.getSouth(), bounds.getWest(), bounds.getNorth(), bounds.getEast()].join(',');
+}
+
+function buildReviewParams() {
+    const params = new URLSearchParams();
+    const city = reviewsCity.value.trim();
+    if (city) {
+        params.set('city', city);
+    }
+
+    params.set('limit', String(Number(reviewsLimit.value || 300)));
+    params.set('min_reviews', String(Number(reviewsMin.value || 30)));
+    params.set('max_reviews_per_business', String(Number(reviewsMaxPer.value || 300)));
+    params.set('max_total_reviews', String(Number(reviewsMaxTotal.value || 300000)));
+
+    return params;
+}
+
+function setReviewsStatus(message, isError = false) {
+    reviewsStatus.textContent = message;
+    reviewsStatus.style.color = isError ? '#dc2626' : '#1e293b';
+    if (reviewsBusinessStatus) {
+        reviewsBusinessStatus.textContent = message;
+        reviewsBusinessStatus.style.color = isError ? '#dc2626' : '#1e293b';
+    }
+}
+
+function toggleChartVisibility() {
+    const scatterCanvas = document.getElementById('reviewsScatterChart');
+    const correlationCanvas = document.getElementById('reviewsCorrelationChart');
+    if (scatterCanvas && scatterPlaceholder) {
+        scatterCanvas.style.display = reviewsMetricsReady ? 'block' : 'none';
+        scatterPlaceholder.style.display = reviewsMetricsReady ? 'none' : 'block';
+    }
+    if (correlationCanvas && correlationPlaceholder) {
+        correlationCanvas.style.display = reviewsMetricsReady ? 'block' : 'none';
+        correlationPlaceholder.style.display = reviewsMetricsReady ? 'none' : 'block';
+    }
+}
+
+function getMetricValue(item, metric) {
+    const value = item[metric];
+    if (value === null || value === undefined) {
+        return null;
+    }
+    return Number(value);
+}
+
+function getReviewBusinessId(item) {
+    return item.business_id || item.businessId || item.id || null;
+}
+
+function formatMetricDisplayValue(value, metric) {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) {
+        return '-';
+    }
+
+    const numericValue = Number(value);
+    if (metric === 'review_count') {
+        return Math.round(numericValue).toLocaleString('en-US');
+    }
+
+    return numericValue.toFixed(2);
+}
+
+function getTopReviewItems(items, metric, topN) {
+    const limit = Math.max(0, Number(topN) || 0);
+    return [...items]
+        .map(item => ({ item, value: getMetricValue(item, metric) }))
+        .filter(entry => Number.isFinite(entry.value))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, limit)
+        .map(entry => entry.item);
+}
+
+function getWorstReviewItems(items, metric, topN) {
+    const limit = Math.max(0, Number(topN) || 0);
+    return [...items]
+        .map(item => ({ item, value: getMetricValue(item, metric) }))
+        .filter(entry => Number.isFinite(entry.value))
+        .sort((a, b) => a.value - b.value)
+        .slice(0, limit)
+        .map(entry => entry.item);
+}
+
+function getMarkerRadius(zoom, isTop) {
+    const base = Math.max(3, 10 - (zoom - 10));
+    const scale = isTop ? 1.8 : 1.0;
+    return Math.max(3, base * scale);
+}
+
+function renderScatter(items) {
+    const xKey = scatterX.value;
+    const yKey = scatterY.value;
+
+    const points = items
+        .filter(item => item[xKey] !== null && item[yKey] !== null)
+        .map(item => ({
+            x: Number(item[xKey]),
+            y: Number(item[yKey]),
+            label: item.name
+        }));
+
+    if (reviewsScatterChart) {
+        reviewsScatterChart.destroy();
+    }
+
+    const ctx = document.getElementById('reviewsScatterChart');
+    reviewsScatterChart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: `${xKey} vs ${yKey}`,
+                data: points,
+                backgroundColor: 'rgba(56, 189, 248, 0.85)',
+                borderColor: '#0ea5e9',
+                pointRadius: 5,
+                pointHoverRadius: 8,
+                pointHitRadius: 12
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: {
+                duration: 800,
+                easing: 'easeOutQuart'
+            },
+            interaction: {
+                mode: 'nearest',
+                intersect: false
+            },
+            hover: {
+                mode: 'nearest',
+                intersect: false
+            },
+            elements: {
+                point: {
+                    hitRadius: 12
+                }
+            },
+            scales: {
+                x: { title: { display: true, text: xKey }, grid: { color: 'rgba(148, 163, 184, 0.2)' } },
+                y: { title: { display: true, text: yKey }, grid: { color: 'rgba(148, 163, 184, 0.2)' } }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctxItem => {
+                            const raw = ctxItem.raw || {};
+                            return `${raw.label || ''} (${xKey}: ${ctxItem.parsed.x}, ${yKey}: ${ctxItem.parsed.y})`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderCorrelation(items, xKey, yKey) {
+    const labels = items.map(item => item.name || item.business_id);
+    const values = items.map(item => Number(item.pearson_r || 0));
+
+    if (reviewsCorrelationChart) {
+        reviewsCorrelationChart.destroy();
+    }
+
+    const ctx = document.getElementById('reviewsCorrelationChart');
+    reviewsCorrelationChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: `pearson_r (${xKey} vs ${yKey})`,
+                data: values,
+                backgroundColor: 'rgba(249, 115, 22, 0.8)',
+                borderColor: '#ea580c',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: {
+                duration: 800,
+                easing: 'easeOutQuart'
+            },
+            scales: {
+                x: { ticks: { display: false }, grid: { display: false } },
+                y: { beginAtZero: false, min: -1, max: 1, grid: { color: 'rgba(148, 163, 184, 0.2)' } }
+            },
+            plugins: {
+                legend: { display: false }
+            }
+        }
+    });
+}
+
+function renderCorrelationOnMap(items, xKey, yKey) {
+    const labels = items.map(item => item.name || item.business_id);
+    const values = items.map(item => Number(item.pearson_r || 0));
+    const avgValue = values.length ? (values.reduce((sum, val) => sum + val, 0) / values.length) : null;
+
+    const ctx = document.getElementById('reviewsMapCorrelationChart');
+    if (!ctx) {
+        return;
+    }
+
+    if (!items || items.length === 0) {
+        mapReportCard.classList.remove('hidden');
+        if (mapReportMessage) {
+            mapReportMessage.style.display = 'block';
+        }
+        if (reviewsMapCorrelationChart) {
+            try {
+                reviewsMapCorrelationChart.destroy();
+            } catch (e) {
+                console.warn('Failed to destroy previous reviewsMapCorrelationChart', e);
+            }
+            reviewsMapCorrelationChart = null;
+        }
+        ctx.style.display = 'none';
+        return;
+    }
+
+    if (mapReportMessage) {
+        mapReportMessage.style.display = 'none';
+    }
+    ctx.style.display = 'block';
+
+    if (reviewsMapCorrelationChart) {
+        reviewsMapCorrelationChart.destroy();
+    }
+
+    reviewsMapCorrelationChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: `R ${xKey.toUpperCase()} vs ${yKey.toUpperCase()}`,
+                data: values,
+                backgroundColor: 'rgba(14, 165, 233, 0.8)',
+                borderColor: '#0ea5e9',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: {
+                duration: 800,
+                easing: 'easeOutQuart'
+            },
+            scales: {
+                x: { ticks: { display: false }, grid: { display: false } },
+                y: { beginAtZero: true, min: 0, max: 1, grid: { color: 'rgba(148, 163, 184, 0.2)' } }
+            },
+            plugins: {
+                legend: { display: true, labels: { color: '#0f172a', font: { weight: 'bold', size: 12 } } },
+                title: {
+                    display: avgValue !== null,
+                    text: avgValue !== null ? `R = ${avgValue.toFixed(3)}` : '',
+                    color: '#0f172a',
+                    font: { weight: 'bold', size: 14 }
+                }
+            }
+        }
+    });
+}
+
+function renderRankingReviewChart({ items, chartId, chartKey, summaryElement, placeholderElement, titleLabel, emptyLabel, comparator }) {
+    const chartCanvas = document.getElementById(chartId);
+    if (!chartCanvas) {
+        return;
+    }
+
+    const metric = reviewsHighlightMetric.value;
+    const topN = Number(reviewsTopN.value || 10);
+    const rankItems = comparator(items || [], metric, topN);
+
+    if (reviewRankingCharts[chartKey]) {
+        reviewRankingCharts[chartKey].destroy();
+        reviewRankingCharts[chartKey] = null;
+    }
+
+    if (!rankItems.length) {
+        if (summaryElement) {
+            summaryElement.textContent = emptyLabel;
+        }
+        if (placeholderElement) {
+            placeholderElement.style.display = 'block';
+        }
+        chartCanvas.style.display = 'none';
+        return;
+    }
+
+    const labels = rankItems.map(item => item.name || getReviewBusinessId(item) || 'Unknown');
+    const values = rankItems.map(item => getMetricValue(item, metric));
+    const chartShell = chartCanvas.closest('.ranking-chart-shell');
+    const chartHeight = Math.max(340, 130 + (rankItems.length * 26));
+    if (chartShell) {
+        chartShell.style.height = `${chartHeight}px`;
+        chartShell.classList.toggle('compact', rankItems.length <= 10);
+        chartShell.classList.toggle('expanded', rankItems.length > 10);
+    }
+
+    if (summaryElement) {
+        summaryElement.textContent = titleLabel.replace('{count}', String(rankItems.length)).replace('{metric}', metric);
+    }
+    if (placeholderElement) {
+        placeholderElement.style.display = 'none';
+    }
+    chartCanvas.style.display = 'block';
+
+    const chart = new Chart(chartCanvas, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: metric,
+                data: values,
+                backgroundColor: 'rgba(37, 99, 235, 0.75)',
+                borderColor: '#1d4ed8',
+                borderWidth: 1,
+                borderRadius: 6,
+                maxBarThickness: 18,
+                categoryPercentage: 0.75,
+                barPercentage: 0.75
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: {
+                padding: {
+                    top: 20,
+                    right: 14,
+                    bottom: 20,
+                    left: 14
+                }
+            },
+            animation: {
+                duration: 800,
+                easing: 'easeOutQuart'
+            },
+            interaction: {
+                mode: 'nearest',
+                intersect: true,
+                axis: 'y'
+            },
+            scales: {
+                x: {
+                    beginAtZero: false,
+                    grace: '18%',
+                    grid: { color: 'rgba(148, 163, 184, 0.2)' },
+                    ticks: { callback: value => formatMetricDisplayValue(value, metric) }
+                },
+                y: {
+                    grid: { display: false },
+                    offset: true,
+                    ticks: {
+                        padding: 8,
+                        font: { size: rankItems.length > 10 ? 11 : 12 }
+                    }
+                }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    mode: 'nearest',
+                    intersect: true,
+                    axis: 'y',
+                    callbacks: {
+                        label: ctxItem => `${metric}: ${formatMetricDisplayValue(ctxItem.parsed.x, metric)}`
+                    }
+                }
+            }
+        }
+    });
+
+    reviewRankingCharts[chartKey] = chart;
+}
+
+function renderTopNReviewChart(items) {
+    renderRankingReviewChart({
+        items,
+        chartId: 'reviewsTopNChart',
+        chartKey: 'top',
+        summaryElement: reviewsTopNChartSummary,
+        placeholderElement: topNPlaceholder,
+        titleLabel: 'Top {count} по {metric} из кеша метрик. Карта использует тот же порядок для подсветки.',
+        emptyLabel: `Нет данных для top ${Number(reviewsTopN.value || 10)} по метрике ${reviewsHighlightMetric.value}.`,
+        comparator: getTopReviewItems
+    });
+}
+
+function renderWorstNReviewChart(items) {
+    renderRankingReviewChart({
+        items,
+        chartId: 'reviewsWorstNChart',
+        chartKey: 'worst',
+        summaryElement: reviewsWorstNChartSummary,
+        placeholderElement: worstNPlaceholder,
+        titleLabel: 'Bottom {count} по {metric} из кеша метрик. Это худшие значения среди уже посчитанных бизнесов.',
+        emptyLabel: `Нет данных для худших ${Number(reviewsTopN.value || 10)} по метрике ${reviewsHighlightMetric.value}.`,
+        comparator: getWorstReviewItems
+    });
+}
+
+function renderReviewMarkers(items) {
+    if (!showReviewMarkers.checked) {
+        if (reviewsComputedMarkerLayer) {
+            map.removeLayer(reviewsComputedMarkerLayer);
+            reviewsComputedMarkerLayer = null;
+        }
+        return;
+    }
+
+    if (!showReviewTopN.checked) {
+        // still render computed markers, but nothing will be highlighted as top.
+    }
+
+    const metric = reviewsHighlightMetric.value;
+    const topN = Number(reviewsTopN.value || 10);
+    const isTopEnabled = showReviewTopN.checked;
+
+    const valid = items.filter(item => item.latitude !== null && item.latitude !== undefined && item.longitude !== null && item.longitude !== undefined);
+    const topIds = isTopEnabled ? new Set(getTopReviewItems(valid, metric, topN).map(item => getReviewBusinessId(item))) : new Set();
+
+    if (reviewsComputedMarkerLayer) {
+        map.removeLayer(reviewsComputedMarkerLayer);
+    }
+
+    reviewsComputedMarkerLayer = L.layerGroup();
+    reviewsComputedMarkersById = new Map();
+
+    const zoom = map.getZoom();
+    const baseMarkers = [];
+    const topMarkers = [];
+
+    valid.forEach(item => {
+        const isTop = topIds.has(item.business_id);
+        const color = isTop ? '#ef4444' : '#2563eb';
+        const fill = isTop ? '#fca5a5' : '#60a5fa';
+
+        const marker = L.circleMarker([item.latitude, item.longitude], {
+            radius: getMarkerRadius(zoom, isTop),
+            color,
+            fillColor: fill,
+            fillOpacity: 0.9,
+            weight: isTop ? 2 : 1
+        });
+
+        marker.on('click', evt => {
+            if (evt) {
+                L.DomEvent.stopPropagation(evt);
+            }
+            selectBusiness(item);
+        });
+
+        const popupHtml = `
+            <strong>${item.name}</strong><br/>
+            ${item.city || ''} ${item.state || ''}<br/>
+            ⭐ ${item.avg_stars?.toFixed?.(2) ?? item.avg_stars ?? '-'}<br/>
+            sentiment: ${item.avg_sentiment?.toFixed?.(2) ?? item.avg_sentiment ?? '-'}<br/>
+            reviews: ${item.review_count ?? 0}
+        `;
+        marker.bindPopup(popupHtml);
+        marker.bindTooltip(popupHtml, { direction: 'top', sticky: true });
+
+        const businessId = getReviewBusinessId(item);
+        if (businessId) {
+            reviewsComputedMarkersById.set(businessId, marker);
+        }
+
+        if (isTop) {
+            topMarkers.push(marker);
+        } else {
+            baseMarkers.push(marker);
+        }
+    });
+
+    baseMarkers.forEach(marker => reviewsComputedMarkerLayer.addLayer(marker));
+    topMarkers.forEach(marker => reviewsComputedMarkerLayer.addLayer(marker));
+    reviewsComputedMarkerLayer.addTo(map);
+}
+
+function loadReviewBaseMarkers() {
+    if (!showReviewBase.checked) {
+        if (reviewsBaseMarkerLayer) {
+            map.removeLayer(reviewsBaseMarkerLayer);
+            reviewsBaseMarkerLayer = null;
+        }
+        return Promise.resolve();
+    }
+
+    const bbox = getBBox();
+    const url = new URL(`${API_BASE}/api/analytics/cuisines/map`);
+    url.searchParams.set('bbox', bbox);
+    url.searchParams.set('limit', '1000');
+
+    return fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            if (reviewsBaseMarkerLayer) {
+                map.removeLayer(reviewsBaseMarkerLayer);
+            }
+
+            reviewsBaseMarkerLayer = L.layerGroup();
+            reviewsBaseMarkersById = new Map();
+
+            data.forEach(item => {
+                if (!item.lat || !item.lon) {
+                    return;
+                }
+                const marker = L.circleMarker([item.lat, item.lon], {
+                    radius: 4,
+                    color: '#64748b',
+                    fillColor: '#cbd5f5',
+                    fillOpacity: 0.8,
+                    weight: 1
+                });
+                marker.on('click', evt => {
+                    if (evt) {
+                        L.DomEvent.stopPropagation(evt);
+                    }
+                    selectBusiness(item);
+                });
+                const popupHtml = `
+                    <strong>${item.name}</strong><br/>
+                    ${item.city || ''} ${item.state || ''}<br/>
+                    ⭐ ${item.stars ?? '-'} | 리뷰 ${item.review_count ?? 0}
+                `;
+                marker.bindPopup(popupHtml);
+                marker.bindTooltip(popupHtml, { direction: 'top', sticky: true });
+                const businessId = item.business_id || item.businessId || item.id || null;
+                if (businessId) {
+                    reviewsBaseMarkersById.set(businessId, marker);
+                }
+                reviewsBaseMarkerLayer.addLayer(marker);
+            });
+
+            reviewsBaseMarkerLayer.addTo(map);
+            if (reviewsComputedMarkerLayer) {
+                map.removeLayer(reviewsComputedMarkerLayer);
+                reviewsComputedMarkerLayer.addTo(map);
+            }
+        })
+        .catch(err => {
+            console.warn('loadReviewBaseMarkers failed', err);
+        });
+}
+
+function highlightSelectedBusiness(item) {
+    if (reviewsSelectedMarker) {
+        map.removeLayer(reviewsSelectedMarker);
+        reviewsSelectedMarker = null;
+    }
+
+    if (!item || item.latitude === null || item.latitude === undefined || item.longitude === null || item.longitude === undefined) {
+        return;
+    }
+
+    reviewsSelectedMarker = L.circleMarker([item.latitude, item.longitude], {
+        radius: 9,
+        color: '#f59e0b',
+        fillColor: '#fde047',
+        fillOpacity: 0.95,
+        weight: 2
+    });
+    reviewsSelectedMarker.on('click', evt => {
+        if (evt) {
+            L.DomEvent.stopPropagation(evt);
+        }
+    });
+    if (item.name) {
+        reviewsSelectedMarker.bindPopup(`
+            <strong>${item.name}</strong><br/>
+            ${item.city || ''} ${item.state || ''}<br/>
+            ⭐ ${item.avg_stars?.toFixed?.(2) ?? item.stars ?? '-'}<br/>
+            reviews: ${item.review_count ?? 0}
+        `);
+    }
+    reviewsSelectedMarker.addTo(map);
+    if (item.name) {
+        reviewsSelectedMarker.openPopup();
+    }
+}
+
+function clearSelectedBusiness() {
+    if (reviewsSelectedMarker) {
+        map.removeLayer(reviewsSelectedMarker);
+        reviewsSelectedMarker = null;
+    }
+
+    if (selectedBusinessId) {
+        const baseMarker = reviewsBaseMarkersById.get(selectedBusinessId);
+        if (baseMarker && reviewsBaseMarkerLayer && showReviewBase.checked) {
+            reviewsBaseMarkerLayer.addLayer(baseMarker);
+        }
+        const computedMarker = reviewsComputedMarkersById.get(selectedBusinessId);
+        if (computedMarker && reviewsComputedMarkerLayer && showReviewMarkers.checked) {
+            reviewsComputedMarkerLayer.addLayer(computedMarker);
+        }
+    }
+    selectedBusinessId = null;
+}
+
+function selectBusiness(item) {
+    const lat = item.latitude ?? item.lat ?? null;
+    const lon = item.longitude ?? item.lon ?? null;
+    const businessId = item.business_id || item.businessId || item.id || null;
+    if (selectedBusinessId && selectedBusinessId !== businessId) {
+        clearSelectedBusiness();
+    }
+    const metrics = reviewsMetricsCache.find(row => (row.business_id || row.businessId) === businessId) || {};
+    selectedBusiness = { ...item, ...metrics, latitude: lat, longitude: lon };
+    selectedBusinessId = businessId;
+
+    if (businessId) {
+        const baseMarker = reviewsBaseMarkersById.get(businessId);
+        if (baseMarker && reviewsBaseMarkerLayer) {
+            reviewsBaseMarkerLayer.removeLayer(baseMarker);
+        }
+        const computedMarker = reviewsComputedMarkersById.get(businessId);
+        if (computedMarker && reviewsComputedMarkerLayer) {
+            reviewsComputedMarkerLayer.removeLayer(computedMarker);
+        }
+    }
+    const label = item.name ? `${item.name} (${item.city || ''} ${item.state || ''})` : `Business ID: ${item.business_id || item.businessId}`;
+    reviewsBusinessName.textContent = label.trim();
+    mapReportCard.classList.add('hidden');
+    if (mapReportMessage) {
+        mapReportMessage.style.display = 'block';
+    }
+    if (lat !== null && lat !== undefined && lon !== null && lon !== undefined) {
+        map.setView([lat, lon], Math.max(map.getZoom(), 14));
+        highlightSelectedBusiness({ latitude: lat, longitude: lon });
+    }
+}
+
+async function lookupBusinessById(businessId) {
+    if (!businessId) {
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE}/analytics/business/${businessId}/location`);
+        if (!response.ok) {
+            throw new Error(`business: ${response.status}`);
+        }
+        const data = await response.json();
+        selectBusiness({
+            business_id: data.business_id,
+            name: data.name,
+            city: data.city,
+            state: data.state,
+            latitude: data.latitude,
+            longitude: data.longitude,
+            stars: data.stars,
+            review_count: data.review_count
+        });
+    } catch (err) {
+        setReviewsStatus(`Бизнес не найден (${err.message}).`, true);
+    }
+}
+
+async function updateReviewsMap() {
+    await loadReviewBaseMarkers();
+    renderReviewMarkers(reviewsMetricsCache);
+    renderTopNReviewChart(reviewsMetricsCache);
+    renderWorstNReviewChart(reviewsMetricsCache);
+}
+
+async function loadReviewAnalytics() {
+    setReviewsStatus('Загрузка метрик...', false);
+    reviewsMetricsReady = false;
+    toggleChartVisibility();
+
+    const params = buildReviewParams();
+    const metricsUrl = new URL(`${API_BASE}/analytics/business-metrics`);
+    metricsUrl.search = params.toString();
+
+    const correlationUrl = new URL(`${API_BASE}/analytics/correlation`);
+    correlationUrl.searchParams.set('x', corrX.value);
+    correlationUrl.searchParams.set('y', corrY.value);
+    correlationUrl.searchParams.set('min_reviews', params.get('min_reviews'));
+    correlationUrl.searchParams.set('max_reviews_per_business', params.get('max_reviews_per_business'));
+    correlationUrl.searchParams.set('max_total_reviews', params.get('max_total_reviews'));
+    const businessId = corrBusinessId.value.trim();
+    if (businessId) {
+        correlationUrl.searchParams.set('business_id', businessId);
+    } else {
+        correlationUrl.searchParams.set('limit_businesses', params.get('limit'));
+        const city = params.get('city');
+        if (city) {
+            correlationUrl.searchParams.set('city', city);
+        }
+    }
+
+    let metricsItems = [];
+
+    try {
+        const metricsResponse = await fetch(metricsUrl);
+        if (!metricsResponse.ok) {
+            throw new Error(`business-metrics: ${metricsResponse.status}`);
+        }
+
+        const metricsData = await metricsResponse.json();
+        metricsItems = metricsData.items || [];
+        reviewsMetricsCache = metricsItems;
+        reviewsMetricsReady = metricsItems.length > 0;
+        toggleChartVisibility();
+        renderScatter(metricsItems);
+        renderReviewMarkers(metricsItems);
+        renderTopNReviewChart(metricsItems);
+        renderWorstNReviewChart(metricsItems);
+        setReviewsStatus(`Метрики загружены: ${metricsItems.length} бизнесов. Корреляция считается автоматически.`, false);
+    } catch (err) {
+        setReviewsStatus(`Ошибка метрик: ${err.message}`, true);
+        return;
+    }
+
+    await loadCorrelationOnly(false);
+}
+
+async function loadCorrelationOnly(isSingleBusiness) {
+    if (!reviewsMetricsReady && !isSingleBusiness) {
+        setReviewsStatus('Сначала посчитай метрики.', true);
+        return;
+    }
+    correlationInProgress = true;
+    correlationReady = false;
+    setReviewsStatus('Считаем корреляцию...', false);
+
+    const params = buildReviewParams();
+    const correlationUrl = new URL(`${API_BASE}/analytics/correlation`);
+    correlationUrl.searchParams.set('x', corrX.value);
+    correlationUrl.searchParams.set('y', corrY.value);
+    correlationUrl.searchParams.set('min_reviews', params.get('min_reviews'));
+    correlationUrl.searchParams.set('max_reviews_per_business', params.get('max_reviews_per_business'));
+    correlationUrl.searchParams.set('max_total_reviews', params.get('max_total_reviews'));
+    const businessId = corrBusinessId.value.trim();
+    if (isSingleBusiness && businessId) {
+        correlationUrl.searchParams.set('business_id', businessId);
+    } else {
+        correlationUrl.searchParams.set('limit_businesses', params.get('limit'));
+        const city = params.get('city');
+        if (city) {
+            correlationUrl.searchParams.set('city', city);
+        }
+    }
+
+    try {
+        const correlationResponse = await fetch(correlationUrl);
+        if (!correlationResponse.ok) {
+            throw new Error(`correlation: ${correlationResponse.status}`);
+        }
+
+        const correlationData = await correlationResponse.json();
+        correlationReady = (correlationData.items || []).length > 0;
+        if (isSingleBusiness) {
+            renderCorrelationOnMap(correlationData.items || [], correlationData.x, correlationData.y);
+        } else {
+            renderCorrelation(correlationData.items || [], correlationData.x, correlationData.y);
+        }
+        setReviewsStatus('Корреляция посчитана.', false);
+    } catch (err) {
+        setReviewsStatus(`Корреляция: ошибка (${err.message}).`, true);
+    } finally {
+        correlationInProgress = false;
+    }
+}
+
+async function loadCorrelationForBusiness(businessId) {
+    if (!businessId) {
+        setReviewsStatus('Сначала выбери бизнес.', true);
+        return;
+    }
+    corrBusinessId.value = businessId;
+    await loadCorrelationOnly(true);
+}
+
+function refreshMap() {
+    return Promise.all([
+        loadReviewBaseMarkers(),
+        Promise.resolve(renderReviewMarkers(reviewsMetricsCache)),
+        Promise.resolve(renderTopNReviewChart(reviewsMetricsCache)),
+        Promise.resolve(renderWorstNReviewChart(reviewsMetricsCache))
+    ]);
+}
+
+const debouncedRefresh = debounce(refreshMap, 400);
+map.on('moveend', debouncedRefresh);
+map.on('zoomend', debouncedRefresh);
+map.on('click', () => {
+    clearSelectedBusiness();
+});
+
+showReviewMarkers.addEventListener('change', refreshMap);
+showReviewBase.addEventListener('change', refreshMap);
+showReviewTopN.addEventListener('change', refreshMap);
+reviewsHighlightMetric.addEventListener('change', refreshMap);
+reviewsTopN.addEventListener('change', refreshMap);
+refreshReviewsMapBtn.addEventListener('click', refreshMap);
+if (openTopNChartBtn) {
+    openTopNChartBtn.addEventListener('click', () => {
+        reviewsChartsCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        renderTopNReviewChart(reviewsMetricsCache);
+        renderWorstNReviewChart(reviewsMetricsCache);
+    });
+}
+loadReviewsBtn.addEventListener('click', loadReviewAnalytics);
+mapCorrelationBtn.addEventListener('click', () => {
+    const businessId = selectedBusiness?.business_id || selectedBusiness?.businessId || corrBusinessId.value.trim();
+    if (!selectedBusiness && businessId) {
+        lookupBusinessById(businessId).then(() => loadCorrelationForBusiness(businessId));
+        return;
+    }
+    loadCorrelationForBusiness(businessId);
+});
+mapReportBtn.addEventListener('click', () => {
+    if (correlationInProgress) {
+        setReviewsStatus('Отчет еще не готов — корреляция в процессе.', true);
+        return;
+    }
+    if (!correlationReady) {
+        setReviewsStatus('Отчет еще не готов — сначала посчитай корреляцию.', true);
+        return;
+    }
+    if (mapReportCard.classList.contains('hidden')) {
+        mapReportCard.classList.remove('hidden');
+    } else {
+        mapReportCard.classList.add('hidden');
+        if (reviewsMapCorrelationChart) {
+            try { reviewsMapCorrelationChart.destroy(); } catch (e) { /* ignore */ }
+            reviewsMapCorrelationChart = null;
+        }
+        if (mapReportMessage) {
+            mapReportMessage.style.display = 'block';
+        }
+        const ctx = document.getElementById('reviewsMapCorrelationChart');
+        if (ctx) ctx.style.display = 'none';
+    }
+});
+if (corrBusinessId) {
+    corrBusinessId.addEventListener('change', () => lookupBusinessById(corrBusinessId.value.trim()));
+    corrBusinessId.addEventListener('blur', () => lookupBusinessById(corrBusinessId.value.trim()));
+}
+reviewsHighlightMetric.addEventListener('change', updateReviewsMap);
+reviewsTopN.addEventListener('change', updateReviewsMap);
+
+setReviewsStatus('Ожидает ввода и загрузки метрик.', false);
+toggleChartVisibility();
+refreshMap();
+
+const layout = document.querySelector('.layout');
+
+document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        const panelId = tab.dataset.panel;
+        const panel = document.getElementById(panelId);
+        if (panel) panel.classList.add('active');
+        if (panelId === 'reviewsChartsPanel') {
+            layout.classList.add('charts-fullscreen');
+            setTimeout(() => {
+                [reviewsScatterChart,reviewsCorrelationChart,reviewRankingCharts.top,reviewRankingCharts.worst].forEach(chart=>{if(chart)chart.resize();});
+            },150);
+        } else {
+            layout.classList.remove('charts-fullscreen');
+            setTimeout(()=>{
+                map.invalidateSize();
+                [reviewsScatterChart,reviewsCorrelationChart,reviewRankingCharts.top,reviewRankingCharts.worst].forEach(chart=>{if(chart)chart.resize();});
+            },150);
+        }
+    });
+});
+
+</script>
+</body>
+</html>

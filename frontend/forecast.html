@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Demand Forecast Dashboard</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: "Segoe UI", sans-serif;
+            color: #1e293b;
+            background: #f8fafc;
+        }
+
+        .layout {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #map {
+            flex: 1;
+        }
+
+        .sidebar {
+            width: 380px;
+            background: #ffffff;
+            border-left: 1px solid #e2e8f0;
+            padding: 16px;
+            overflow-y: auto;
+            box-shadow: 0 0 20px rgba(15, 23, 42, 0.06);
+        }
+
+        .card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 14px;
+            margin-bottom: 14px;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+        }
+
+        .card h3 {
+            margin: 0 0 8px;
+            font-size: 16px;
+        }
+
+        label {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 6px;
+            color: #1f2937;
+        }
+
+        select {
+            width: 100%;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid #cbd5f5;
+            background: #f8fafc;
+            box-sizing: border-box;
+            line-height: 1.25;
+        }
+
+        input {
+            width: 100%;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid #cbd5f5;
+            background: #f8fafc;
+            box-sizing: border-box;
+            line-height: 1.25;
+        }
+
+        input[type="checkbox"] {
+            width: auto;
+            padding: 0;
+            margin: 0;
+        }
+
+        button.primary {
+            background: linear-gradient(135deg, #2563eb, #4f46e5);
+            color: #ffffff;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 14px;
+            cursor: pointer;
+            box-shadow: 0 10px 20px rgba(37, 99, 235, 0.35);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        button.primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(37, 99, 235, 0.4);
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px 16px;
+            align-items: start;
+        }
+
+        .status {
+            font-size: 12px;
+            color: #0f172a;
+            margin-top: 6px;
+        }
+
+        .toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+
+        .toggle label {
+            margin: 0;
+            display: inline;
+        }
+
+        .sidebar canvas {
+            width: 100% !important;
+            height: 260px !important;
+            background: #f8fafc;
+            border-radius: 12px;
+        }
+
+        .chart-card {
+            position: relative;
+        }
+
+        .chart-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .chart-actions button {
+            background: #0f172a;
+            color: #ffffff;
+            border: none;
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .hint {
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .chart-placeholder {
+            padding: 16px;
+            text-align: center;
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 1px dashed #cbd5f5;
+            color: #64748b;
+        }
+
+        #forecastPanel canvas {
+            height: 320px !important;
+        }
+
+        .chart-shell {
+            position: relative;
+            width: 100%;
+            background: #f8fafc;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .chart-shell canvas {
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
+            background: transparent;
+            border-radius: 12px;
+        }
+
+        .forecast-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px 16px;
+        }
+
+        .dual-forecast-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .dual-forecast-grid canvas {
+            height: 300px !important;
+        }
+
+        .line-toggle-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 14px;
+            margin: 8px 0 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="layout">
+    <div id="map"></div>
+    <aside class="sidebar">
+        <section class="panel" id="forecastPanel">
+            <div class="card">
+                <div class="chart-actions">
+                    <h3>Прогноз спроса</h3>
+                    <button id="toggleForecastFullscreen">Развернуть</button>
+                </div>
+                <div class="forecast-grid">
+                    <div>
+                        <label for="forecastBusinessId">Business ID</label>
+                        <input id="forecastBusinessId" placeholder="zJpZ-uQ_F0XVgK1u98uWSg" />
+                    </div>
+                    <div>
+                        <label for="forecastGranularity">Гранулярность</label>
+                        <select id="forecastGranularity">
+                            <option value="day" selected>day</option>
+                            <option value="week">week</option>
+                            <option value="month">month</option>
+                            <option value="quarter">quarter</option>
+                            <option value="year">year</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="forecastHorizon">Horizon (периоды)</label>
+                        <input id="forecastHorizon" type="number" value="14" min="1" max="90" />
+                    </div>
+                    <div>
+                        <label for="forecastTrainEnd">Train end (опц.)</label>
+                        <input id="forecastTrainEnd" type="date" />
+                    </div>
+                    <div class="toggle">
+                        <input type="checkbox" id="forecastIncludeHistory" checked />
+                        <label for="forecastIncludeHistory">Включить историю</label>
+                    </div>
+                    <div class="toggle">
+                        <input type="checkbox" id="forecastDenseHistory" checked />
+                        <label for="forecastDenseHistory">Dense история (нулевые точки)</label>
+                    </div>
+                </div>
+                <div style="display:flex; align-items:flex-end; margin-top: 8px;">
+                    <button class="primary" id="loadForecastBtn">Построить прогноз</button>
+                </div>
+                <div class="status" id="forecastStatus"></div>
+                <p class="hint">Если train_end не задан, берётся last_active_date (если найдено), иначе последняя дата истории.</p>
+            </div>
+
+            <div class="card">
+                <h3>История + прогноз + backtest</h3>
+                <div class="chart-placeholder" id="forecastMainPlaceholder">Сначала построй прогноз для выбранного бизнеса.</div>
+                <canvas id="forecastMainChart"></canvas>
+            </div>
+
+            <div class="card">
+                <h3>Признаки (reviews) vs посещаемость</h3>
+                <div class="line-toggle-grid">
+                    <div class="toggle">
+                        <input type="checkbox" id="showFeatureCheckins" checked />
+                        <label for="showFeatureCheckins">Посещаемость</label>
+                    </div>
+                    <div class="toggle">
+                        <input type="checkbox" id="showFeatureReviews" checked />
+                        <label for="showFeatureReviews">Reviews</label>
+                    </div>
+                    <div class="toggle">
+                        <input type="checkbox" id="showFeatureStars" checked />
+                        <label for="showFeatureStars">Avg stars</label>
+                    </div>
+                </div>
+                <div class="chart-placeholder" id="forecastFeaturesPlaceholder">Нужна история по бизнесу для построения.</div>
+                <canvas id="forecastFeaturesChart"></canvas>
+            </div>
+
+            <div class="card">
+                <h3>Прогноз для 2 бизнесов</h3>
+                <div class="forecast-grid">
+                    <div>
+                        <label for="dualForecastBusiness1">Business #1</label>
+                        <input id="dualForecastBusiness1" placeholder="zJpZ-uQ_F0XVgK1u98uWSg" />
+                    </div>
+                    <div>
+                        <label for="dualForecastBusiness2">Business #2</label>
+                        <input id="dualForecastBusiness2" placeholder="_ab50qdWOk0DdB6XOrBitw" />
+                    </div>
+                    <div>
+                        <label for="dualForecastGranularity">Гранулярность</label>
+                        <select id="dualForecastGranularity">
+                            <option value="day" selected>day</option>
+                            <option value="week">week</option>
+                            <option value="month">month</option>
+                            <option value="quarter">quarter</option>
+                            <option value="year">year</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="dualForecastHorizon">Horizon (периоды)</label>
+                        <input id="dualForecastHorizon" type="number" value="14" min="1" max="90" />
+                    </div>
+                    <div>
+                        <label for="dualForecastTrainEnd">Train end (опц.)</label>
+                        <input id="dualForecastTrainEnd" type="date" />
+                    </div>
+                    <div class="toggle">
+                        <input type="checkbox" id="dualForecastIncludeHistory" checked />
+                        <label for="dualForecastIncludeHistory">Включить историю</label>
+                    </div>
+                    <div class="toggle">
+                        <input type="checkbox" id="dualForecastDenseHistory" checked />
+                        <label for="dualForecastDenseHistory">Dense история (нулевые точки)</label>
+                    </div>
+                </div>
+                <div style="display:flex; align-items:flex-end; margin-top: 8px;">
+                    <button class="primary" id="loadDualForecastBtn">Построить два прогноза</button>
+                </div>
+                <div class="status" id="dualForecastStatus"></div>
+                <p class="hint">Эти настройки работают отдельно от одиночного прогноза выше.</p>
+                <div class="dual-forecast-grid" style="margin-top: 10px;">
+                    <div>
+                        <h3 style="font-size: 14px;">Business #1</h3>
+                        <div class="chart-placeholder" id="dualForecastPlaceholder1">Сначала построй прогноз.</div>
+                        <canvas id="dualForecastChart1"></canvas>
+                    </div>
+                    <div>
+                        <h3 style="font-size: 14px;">Business #2</h3>
+                        <div class="chart-placeholder" id="dualForecastPlaceholder2">Сначала построй прогноз.</div>
+                        <canvas id="dualForecastChart2"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </aside>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+const API_BASE = "http://127.0.0.1:8000";
+
+const map = L.map('map').setView([39.9526, -75.1652], 12);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd',
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap & CARTO'
+}).addTo(map);
+
+const forecastBusinessId = document.getElementById('forecastBusinessId');
+const forecastGranularity = document.getElementById('forecastGranularity');
+const forecastHorizon = document.getElementById('forecastHorizon');
+const forecastTrainEnd = document.getElementById('forecastTrainEnd');
+const forecastIncludeHistory = document.getElementById('forecastIncludeHistory');
+const forecastDenseHistory = document.getElementById('forecastDenseHistory');
+const loadForecastBtn = document.getElementById('loadForecastBtn');
+const forecastStatus = document.getElementById('forecastStatus');
+const forecastMainPlaceholder = document.getElementById('forecastMainPlaceholder');
+const forecastFeaturesPlaceholder = document.getElementById('forecastFeaturesPlaceholder');
+const toggleForecastFullscreen = document.getElementById('toggleForecastFullscreen');
+const showFeatureCheckins = document.getElementById('showFeatureCheckins');
+const showFeatureReviews = document.getElementById('showFeatureReviews');
+const showFeatureStars = document.getElementById('showFeatureStars');
+const dualForecastBusiness1 = document.getElementById('dualForecastBusiness1');
+const dualForecastBusiness2 = document.getElementById('dualForecastBusiness2');
+const dualForecastGranularity = document.getElementById('dualForecastGranularity');
+const dualForecastHorizon = document.getElementById('dualForecastHorizon');
+const dualForecastTrainEnd = document.getElementById('dualForecastTrainEnd');
+const dualForecastIncludeHistory = document.getElementById('dualForecastIncludeHistory');
+const dualForecastDenseHistory = document.getElementById('dualForecastDenseHistory');
+const loadDualForecastBtn = document.getElementById('loadDualForecastBtn');
+const dualForecastStatus = document.getElementById('dualForecastStatus');
+
+let businessMarker = null;
+let forecastMainChart = null;
+let forecastFeaturesChart = null;
+let dualForecastCharts = [null, null];
+
+async function lookupBusinessById(businessId) {
+    if (!businessId) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/analytics/business/${businessId}/location`);
+        if (!response.ok) {
+            throw new Error(`business: ${response.status}`);
+        }
+        const data = await response.json();
+        const lat = Number(data.latitude);
+        const lon = Number(data.longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+            return;
+        }
+
+        map.setView([lat, lon], 14);
+        if (businessMarker) {
+            map.removeLayer(businessMarker);
+        }
+        businessMarker = L.circleMarker([lat, lon], {
+            radius: 8,
+            color: '#1d4ed8',
+            fillColor: '#60a5fa',
+            fillOpacity: 0.9,
+            weight: 2
+        }).addTo(map);
+        businessMarker.bindPopup(`<strong>${data.name || businessId}</strong><br/>${data.city || ''} ${data.state || ''}`);
+        businessMarker.openPopup();
+    } catch (err) {
+        console.warn('lookupBusinessById failed', err);
+    }
+}
+
+function setForecastStatus(message, isError = false) {
+    forecastStatus.textContent = message;
+    forecastStatus.style.color = isError ? '#dc2626' : '#1e293b';
+}
+
+function setDualForecastStatus(message, isError = false) {
+    dualForecastStatus.textContent = message;
+    dualForecastStatus.style.color = isError ? '#dc2626' : '#1e293b';
+}
+
+function buildForecastParams(businessId = forecastBusinessId.value.trim()) {
+    const params = new URLSearchParams();
+    params.set('business_id', businessId);
+    params.set('granularity', forecastGranularity.value);
+    params.set('horizon', String(Number(forecastHorizon.value || 14)));
+    params.set('include_history', forecastIncludeHistory.checked ? 'true' : 'false');
+    params.set('dense_history', forecastDenseHistory.checked ? 'true' : 'false');
+    const trainEnd = forecastTrainEnd.value;
+    if (trainEnd) {
+        params.set('train_end', trainEnd);
+    }
+    return params;
+}
+
+function buildDualForecastParams(businessId) {
+    const params = new URLSearchParams();
+    params.set('business_id', businessId);
+    params.set('granularity', dualForecastGranularity.value);
+    params.set('horizon', String(Number(dualForecastHorizon.value || 14)));
+    params.set('include_history', dualForecastIncludeHistory.checked ? 'true' : 'false');
+    params.set('dense_history', dualForecastDenseHistory.checked ? 'true' : 'false');
+    const trainEnd = dualForecastTrainEnd.value;
+    if (trainEnd) {
+        params.set('train_end', trainEnd);
+    }
+    return params;
+}
+
+function applyFeatureLineVisibility(chart) {
+    if (!chart) {
+        return;
+    }
+
+    const visibilityByLabel = {
+        'Checkins': showFeatureCheckins ? showFeatureCheckins.checked : true,
+        'Review count': showFeatureReviews ? showFeatureReviews.checked : true,
+        'Avg review stars': showFeatureStars ? showFeatureStars.checked : true
+    };
+
+    chart.data.datasets.forEach((dataset, index) => {
+        if (Object.prototype.hasOwnProperty.call(visibilityByLabel, dataset.label)) {
+            chart.setDatasetVisibility(index, visibilityByLabel[dataset.label]);
+        }
+    });
+    chart.update();
+}
+
+function applyAllFeatureLineVisibility() {
+    applyFeatureLineVisibility(forecastFeaturesChart);
+}
+
+function renderForecastMain(payload) {
+    const history = payload.history_points || [];
+    const forecast = payload.forecast_points || [];
+    const actual = payload.actual_points || [];
+    const trainEnd = payload.train_end || null;
+
+    if (!history.length && !forecast.length) {
+        if (forecastMainPlaceholder) {
+            forecastMainPlaceholder.style.display = 'block';
+        }
+        return;
+    }
+
+    const historyDates = history.map(point => point.date);
+    const forecastDates = forecast.map(point => point.date);
+    const labels = Array.from(new Set([...historyDates, ...forecastDates]));
+
+    const historyValues = labels.map(label => {
+        const found = history.find(point => point.date === label);
+        return found ? found.checkins : null;
+    });
+    const forecastValues = labels.map(label => {
+        const found = forecast.find(point => point.date === label);
+        return found ? found.yhat : null;
+    });
+    const lowerValues = labels.map(label => {
+        const found = forecast.find(point => point.date === label);
+        return found ? found.yhat_lower : null;
+    });
+    const upperValues = labels.map(label => {
+        const found = forecast.find(point => point.date === label);
+        return found ? found.yhat_upper : null;
+    });
+    const actualValues = labels.map(label => {
+        const found = actual.find(point => point.date === label);
+        return found ? found.actual : null;
+    });
+
+    if (forecastMainChart) {
+        forecastMainChart.destroy();
+    }
+
+    const ctx = document.getElementById('forecastMainChart');
+    const trainLinePlugin = {
+        id: 'trainLinePlugin',
+        afterDraw(chart) {
+            if (!trainEnd) {
+                return;
+            }
+            const xScale = chart.scales.x;
+            const yScale = chart.scales.y;
+            if (!xScale || !yScale) {
+                return;
+            }
+            const x = xScale.getPixelForValue(trainEnd);
+            if (!Number.isFinite(x)) {
+                return;
+            }
+            const ctx2 = chart.ctx;
+            ctx2.save();
+            ctx2.strokeStyle = 'rgba(15, 23, 42, 0.5)';
+            ctx2.setLineDash([6, 6]);
+            ctx2.beginPath();
+            ctx2.moveTo(x, yScale.top);
+            ctx2.lineTo(x, yScale.bottom);
+            ctx2.stroke();
+            ctx2.restore();
+        }
+    };
+
+    forecastMainChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'История (checkins)',
+                    data: historyValues,
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37, 99, 235, 0.15)',
+                    borderWidth: 2,
+                    tension: 0.25,
+                    spanGaps: true,
+                    pointRadius: 0,
+                    pointHoverRadius: 3,
+                    order: 2
+                },
+                {
+                    label: 'Прогноз (yhat)',
+                    data: forecastValues,
+                    borderColor: '#16a34a',
+                    backgroundColor: 'rgba(22, 163, 74, 0.15)',
+                    borderWidth: 2,
+                    tension: 0.2,
+                    spanGaps: true,
+                    pointRadius: 0,
+                    pointHoverRadius: 3,
+                    order: 3
+                },
+                {
+                    label: 'yhat_lower',
+                    data: lowerValues,
+                    borderColor: 'rgba(22, 163, 74, 0.0)',
+                    backgroundColor: 'rgba(22, 163, 74, 0.18)',
+                    pointRadius: 0,
+                    fill: false,
+                    order: 1
+                },
+                {
+                    label: 'Интервал (95%)',
+                    data: upperValues,
+                    borderColor: 'rgba(22, 163, 74, 0.0)',
+                    backgroundColor: 'rgba(22, 163, 74, 0.18)',
+                    pointRadius: 0,
+                    fill: '-1',
+                    order: 1
+                },
+                {
+                    label: 'Факт (backtest)',
+                    data: actualValues,
+                    borderColor: '#f97316',
+                    backgroundColor: 'rgba(249, 115, 22, 0.2)',
+                    borderWidth: 2,
+                    tension: 0.2,
+                    spanGaps: true,
+                    pointRadius: 2,
+                    pointHoverRadius: 4,
+                    order: 4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'bottom',
+                    labels: {
+                        filter: item => item.text !== 'yhat_lower'
+                    }
+                }
+            },
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            scales: {
+                x: { ticks: { maxRotation: 0, maxTicksLimit: 6 }, grid: { display: false } },
+                y: { beginAtZero: true, grid: { color: 'rgba(148, 163, 184, 0.2)' } }
+            }
+        },
+        plugins: [trainLinePlugin]
+    });
+
+    if (forecastMainPlaceholder) {
+        forecastMainPlaceholder.style.display = 'none';
+    }
+}
+
+function renderForecastFeatures(payload) {
+    const history = payload.history_points || [];
+    if (!history.length) {
+        if (forecastFeaturesPlaceholder) {
+            forecastFeaturesPlaceholder.style.display = 'block';
+        }
+        return;
+    }
+
+    const labels = history.map(point => point.date);
+    const checkins = history.map(point => point.checkins);
+    const reviewCount = history.map(point => point.review_count);
+    const avgStars = history.map(point => point.avg_review_stars);
+
+    if (forecastFeaturesChart) {
+        forecastFeaturesChart.destroy();
+    }
+
+    const ctx = document.getElementById('forecastFeaturesChart');
+    forecastFeaturesChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                {
+                    type: 'line',
+                    label: 'Checkins',
+                    data: checkins,
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37, 99, 235, 0.2)',
+                    yAxisID: 'y',
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    pointHitRadius: 12
+                },
+                {
+                    label: 'Review count',
+                    data: reviewCount,
+                    backgroundColor: 'rgba(148, 163, 184, 0.5)',
+                    borderRadius: 4,
+                    yAxisID: 'yReviews'
+                },
+                {
+                    type: 'line',
+                    label: 'Avg review stars',
+                    data: avgStars,
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                    yAxisID: 'yStars',
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    pointHitRadius: 12
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true }
+            },
+            interaction: {
+                mode: 'nearest',
+                intersect: false
+            },
+            hover: {
+                mode: 'nearest',
+                intersect: false
+            },
+            elements: {
+                point: {
+                    hitRadius: 12
+                }
+            },
+            scales: {
+                x: { ticks: { maxRotation: 0 }, grid: { display: false } },
+                y: { beginAtZero: true, position: 'left', grid: { color: 'rgba(148, 163, 184, 0.2)' } },
+                yReviews: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } },
+                yStars: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } }
+            }
+        }
+    });
+
+    if (forecastFeaturesPlaceholder) {
+        forecastFeaturesPlaceholder.style.display = 'none';
+    }
+
+    applyFeatureLineVisibility(forecastFeaturesChart);
+}
+
+function renderDualForecastChart(index, payload, businessId) {
+    const history = payload.history_points || [];
+    const forecast = payload.forecast_points || [];
+    const actual = payload.actual_points || [];
+    const labels = Array.from(new Set([
+        ...history.map(point => point.date),
+        ...forecast.map(point => point.date)
+    ]));
+
+    const historyValues = labels.map(label => {
+        const found = history.find(point => point.date === label);
+        return found ? found.checkins : null;
+    });
+    const forecastValues = labels.map(label => {
+        const found = forecast.find(point => point.date === label);
+        return found ? found.yhat : null;
+    });
+    const actualValues = labels.map(label => {
+        const found = actual.find(point => point.date === label);
+        return found ? found.actual : null;
+    });
+
+    if (dualForecastCharts[index]) {
+        dualForecastCharts[index].destroy();
+    }
+
+    const placeholder = document.getElementById(`dualForecastPlaceholder${index + 1}`);
+    const ctx = document.getElementById(`dualForecastChart${index + 1}`);
+    dualForecastCharts[index] = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'Checkins',
+                    data: historyValues,
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37, 99, 235, 0.16)',
+                    borderWidth: 2,
+                    tension: 0.25,
+                    spanGaps: true,
+                    pointRadius: 0,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Forecast',
+                    data: forecastValues,
+                    borderColor: '#16a34a',
+                    backgroundColor: 'rgba(22, 163, 74, 0.2)',
+                    borderWidth: 2,
+                    tension: 0.2,
+                    spanGaps: true,
+                    pointRadius: 0,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Actual',
+                    data: actualValues,
+                    borderColor: '#f97316',
+                    backgroundColor: 'rgba(249, 115, 22, 0.2)',
+                    borderWidth: 2,
+                    tension: 0.2,
+                    spanGaps: true,
+                    pointRadius: 2,
+                    yAxisID: 'y'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true, position: 'bottom' },
+                title: {
+                    display: true,
+                    text: businessId
+                }
+            },
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            scales: {
+                x: { ticks: { maxRotation: 0, maxTicksLimit: 5 }, grid: { display: false } },
+                y: { beginAtZero: true, position: 'left', grid: { color: 'rgba(148, 163, 184, 0.2)' } }
+            }
+        }
+    });
+
+    if (placeholder) {
+        placeholder.style.display = 'none';
+    }
+}
+
+async function loadForecast() {
+    const businessId = forecastBusinessId.value.trim();
+    if (!businessId) {
+        setForecastStatus('Укажи business_id.', true);
+        return;
+    }
+
+    lookupBusinessById(businessId);
+
+    const params = buildForecastParams();
+
+    try {
+        setForecastStatus('Считаем прогноз...', false);
+        const url = new URL(`${API_BASE}/demand/predict`);
+        url.search = params.toString();
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`predict: ${response.status}`);
+        }
+        const payload = await response.json();
+        renderForecastMain(payload);
+        renderForecastFeatures(payload);
+
+        const activity = payload.activity || {};
+        setForecastStatus(
+            `Готово. last_active=${activity.last_active_date || '-'} | last_checkin=${activity.last_checkin_date || '-'} | last_review=${activity.last_review_date || '-'}`,
+            false
+        );
+    } catch (err) {
+        setForecastStatus(`Ошибка прогноза: ${err.message}`, true);
+    }
+}
+
+async function loadDualForecast() {
+    const ids = [dualForecastBusiness1.value.trim(), dualForecastBusiness2.value.trim()];
+    if (ids.every(id => !id)) {
+        setDualForecastStatus('Укажи хотя бы один business_id.', true);
+        return;
+    }
+
+    setDualForecastStatus('Считаем два прогноза...', false);
+
+    try {
+        await Promise.all(ids.map(async (id, index) => {
+            if (!id) {
+                return;
+            }
+
+            if (index === 0) {
+                lookupBusinessById(id);
+            }
+
+            const params = buildDualForecastParams(id);
+            const url = new URL(`${API_BASE}/demand/predict`);
+            url.search = params.toString();
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`predict ${id}: ${response.status}`);
+            }
+            const payload = await response.json();
+            renderDualForecastChart(index, payload, id);
+        }));
+        setDualForecastStatus('Два прогноза готовы.', false);
+    } catch (err) {
+        setDualForecastStatus(`Ошибка прогноза: ${err.message}`, true);
+    }
+}
+
+loadForecastBtn.addEventListener('click', loadForecast);
+loadDualForecastBtn.addEventListener('click', loadDualForecast);
+showFeatureCheckins.addEventListener('change', applyAllFeatureLineVisibility);
+showFeatureReviews.addEventListener('change', applyAllFeatureLineVisibility);
+showFeatureStars.addEventListener('change', applyAllFeatureLineVisibility);
+
+toggleForecastFullscreen.addEventListener('click', () => {
+    const layout = document.querySelector('.layout');
+    const mapDiv = document.getElementById('map');
+    const sidebar = document.querySelector('.sidebar');
+    
+    if (mapDiv.style.display !== 'none') {
+        mapDiv.style.display = 'none';
+        sidebar.style.width = '100%';
+        toggleForecastFullscreen.textContent = 'Свернуть';
+    } else {
+        mapDiv.style.display = 'block';
+        sidebar.style.width = '380px';
+        toggleForecastFullscreen.textContent = 'Развернуть';
+    }
+    requestAnimationFrame(() => map.invalidateSize());
+});
+
+setForecastStatus('Ожидает ввода business_id.', false);
+setDualForecastStatus('Ожидает ввода хотя бы одного business_id.', false);
+</script>
+</body>
+</html>

@@ -51,6 +51,29 @@
             overflow-y: auto;
         }
 
+        .hub-row {
+            display: flex;
+            margin-bottom: 12px;
+        }
+
+        .hub-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            color: #1d4ed8;
+            background: rgba(37, 99, 235, 0.08);
+            border: 1px solid rgba(37, 99, 235, 0.14);
+            border-radius: 999px;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .hub-link:hover {
+            background: rgba(37, 99, 235, 0.14);
+        }
+
         .brand {
             display: grid;
             gap: 8px;
@@ -570,6 +593,10 @@
 <body>
     <div class="shell">
         <aside class="sidebar">
+            <div class="hub-row">
+                <a class="hub-link" href="index.html">← В хаб</a>
+            </div>
+
             <div class="brand">
                 <div class="eyebrow">Market Forecast</div>
                 <h1>Где открываться дальше</h1>

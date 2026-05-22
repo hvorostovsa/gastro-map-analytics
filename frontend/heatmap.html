@@ -388,30 +388,12 @@
     <div id="map"></div>
     <aside class="sidebar">
         <div class="tabs">
-            <button class="tab active" data-panel="densityPanel">Плотность</button>
-            <button class="tab" data-panel="cuisinePanel">Кухни</button>
+            <button class="tab active" data-panel="cuisinePanel">Кухни</button>
             <button class="tab" data-panel="reviewsMapPanel">Отзывы (карта)</button>
             <button class="tab" data-panel="reviewsChartsPanel">Отзывы (графики)</button>
             <button class="tab" data-panel="forecastPanel">Прогноз</button>
-            <button class="tab" data-panel="marketPanel">Рынок</button>
         </div>
-        <section class="panel active" id="densityPanel">
-            <div class="card">
-                <h3>Плотность заведений</h3>
-                <div class="toggle">
-                    <input type="checkbox" id="showDensity" checked />
-                    <label for="showDensity">Показывать плотность</label>
-                </div>
-                <div class="toggle">
-                    <input type="checkbox" id="showCountyBoundaries" />
-                    <label for="showCountyBoundaries">Показывать границы округов</label>
-                </div>
-                <p class="hint">Границы округов (counties) с возможностью клика для просмотра информации.</p>
-            </div>
-        </section>
-
-
-        <section class="panel" id="cuisinePanel">
+        <section class="panel active" id="cuisinePanel">
             <div class="card">
                 <h3>Классификация кухонь</h3>
                 <label for="cuisineSelect">Выберите кухню</label>
@@ -771,12 +753,6 @@
             </div>
         </section>
 
-        <section class="panel" id="marketPanel">
-            <div class="card">
-                <h3>Рынок и новые точки</h3>
-                <p class="hint">В разработке: карта роста рынка и перспективные зоны.</p>
-            </div>
-        </section>
     </aside>
 </div>
 
@@ -804,8 +780,6 @@ const topCuisineAreasStatus = document.getElementById('topCuisineAreasStatus');
 const cuisineAreasStatus = document.getElementById('cuisineAreasStatus');
 const cuisineAreasPlaceholder = document.getElementById('cuisineAreasPlaceholder');
 const cuisineAreasList = document.getElementById('cuisineAreasList');
-const showDensity = document.getElementById('showDensity');
-const showCountyBoundaries = document.getElementById('showCountyBoundaries');
 const showMarkers = document.getElementById('showMarkers');
 const showReviewMarkers = document.getElementById('showReviewMarkers');
 const showReviewBase = document.getElementById('showReviewBase');
@@ -863,7 +837,6 @@ const dualForecastDenseHistory = document.getElementById('dualForecastDenseHisto
 const loadDualForecastBtn = document.getElementById('loadDualForecastBtn');
 const dualForecastStatus = document.getElementById('dualForecastStatus');
 
-let densityLayer = null;
 let markerLayer = null;
 let reviewsBaseMarkerLayer = null;
 let reviewsComputedMarkerLayer = null;
@@ -871,7 +844,6 @@ let reviewsSelectedMarker = null;
 let reviewsBaseMarkersById = new Map();
 let reviewsComputedMarkersById = new Map();
 let selectedBusinessId = null;
-let countyLayer = null;
 
 let reviewsMetricsCache = [];
 let selectedBusiness = null;
@@ -2730,138 +2702,6 @@ async function loadCorrelationForBusiness(businessId) {
     await loadCorrelationOnly(true);
 }
 
-async function loadDensityHeatmap() {
-    if (!showDensity.checked) {
-        if (densityLayer) {
-            map.removeLayer(densityLayer);
-            densityLayer = null;
-        }
-        return;
-    }
-
-    const activePanel = document.querySelector('.panel.active');
-    if (activePanel && activePanel.id !== 'densityPanel') {
-        if (densityLayer) {
-            map.removeLayer(densityLayer);
-            densityLayer = null;
-        }
-        return;
-    }
-
-    const bbox = getBBox();
-    let heatData = [];
-    const url = new URL(`${API_BASE}/api/analytics/cuisines/map`);
-    url.searchParams.set("bbox", bbox);
-    url.searchParams.set("limit", "2000");
-
-    try {
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`density points: ${response.status}`);
-        }
-        const data = await response.json();
-        if (!Array.isArray(data)) {
-            throw new Error("density points returned non-array data");
-        }
-        heatData = data
-            .filter(p => p.lat !== null && p.lat !== undefined && p.lon !== null && p.lon !== undefined)
-            .map(p => [
-                Number(p.lat),
-                Number(p.lon),
-                1
-            ]);
-    } catch (err) {
-        console.warn("Density heatmap failed.", err);
-    }
-
-    if (densityLayer) {
-        map.removeLayer(densityLayer);
-        densityLayer = null;
-    }
-
-    if (!heatData.length) {
-        return;
-    }
-
-    densityLayer = L.heatLayer(heatData, {
-        radius: 35,
-        blur: 20,
-        maxZoom: 17,
-        minOpacity: 0.4
-    }).addTo(map);
-}
-
-async function loadCountyBoundaries() {
-    if (!showCountyBoundaries.checked) {
-        if (countyLayer) {
-            map.removeLayer(countyLayer);
-            countyLayer = null;
-        }
-        return;
-    }
-
-    const activePanel = document.querySelector('.panel.active');
-    if (activePanel && activePanel.id !== 'densityPanel') {
-        if (countyLayer) {
-            map.removeLayer(countyLayer);
-            countyLayer = null;
-        }
-        return;
-    }
-
-    const url = new URL(`${API_BASE}/counties/borders`);
-    url.searchParams.set('simplify', '0.001');
-
-    try {
-        const resp = await fetch(url.toString());
-        if (!resp.ok) {
-            throw new Error(`counties/borders: ${resp.status}`);
-        }
-        const geo = await resp.json();
-
-        if (countyLayer) {
-            map.removeLayer(countyLayer);
-            countyLayer = null;
-        }
-
-        function styleFeature(feature) {
-            return {
-                color: '#6b7280',
-                weight: 2,
-                opacity: 0.8,
-                fillColor: '#9ca3af',
-                fillOpacity: 0.12
-            };
-        }
-
-        function onEachFeature(feature, layer) {
-            const props = feature.properties || {};
-            const name = props.county_name || props.name || 'Unknown';
-            const state = props.state || '';
-            const area = props.area_sq_km ? `${props.area_sq_km} km²` : '';
-            layer.bindPopup(`<strong>${name}</strong><br/>${state}<br/>${area}`);
-            layer.on('mouseover', function () {
-                this.setStyle({ fillOpacity: 0.28, weight: 3 });
-            });
-            layer.on('mouseout', function () {
-                try { this.setStyle(styleFeature(feature)); } catch (e) { /* ignore */ }
-            });
-        }
-
-        countyLayer = L.geoJSON(geo, {
-            style: styleFeature,
-            onEachFeature: onEachFeature
-        }).addTo(map);
-
-    } catch (err) {
-        console.error('Failed to load county boundaries', err);
-        if (countyLayer) {
-            try { map.removeLayer(countyLayer); } catch (e) { /* ignore */ }
-            countyLayer = null;
-        }
-    }
-}
-
 async function loadMarkers() {
     const requestId = ++cuisineMarkerRequestId;
 
@@ -2932,10 +2772,7 @@ async function loadMarkers() {
 
 async function refreshMap() {
     const cuisineHeatmapToRefresh = activeCuisineHeatmap;
-    // Load density, cuisine markers and base (gray) review markers in parallel
     await Promise.all([
-        loadDensityHeatmap(),
-        loadCountyBoundaries(),
         loadMarkers(),
         loadReviewBaseMarkers(),
         cuisineHeatmapToRefresh ? renderCuisineBusinessHeatmap(cuisineHeatmapToRefresh) : Promise.resolve()
@@ -2952,9 +2789,7 @@ map.on("click", () => {
     clearSelectedBusiness();
 });
 
-showDensity.addEventListener("change", refreshMap);
 showMarkers.addEventListener("change", refreshMap);
-showCountyBoundaries.addEventListener("change", refreshMap);
 cuisineSelect.addEventListener("change", () => {
     clearCuisineAreaLayers();
     updateCurrentCuisineAreaLabel();
