@@ -43,6 +43,29 @@
             z-index: 1001;
             position: relative;
         }
+
+        .hub-row {
+            padding: 10px 12px 0;
+            margin: -12px 0 8px -16px;
+        }
+
+        .hub-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            color: #1d4ed8;
+            background: rgba(37, 99, 235, 0.08);
+            border: 1px solid rgba(37, 99, 235, 0.14);
+            border-radius: 999px;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .hub-link:hover {
+            background: rgba(37, 99, 235, 0.14);
+        }
         
         .analysis-panel.collapsed {
             transform: translateX(100%);
@@ -330,6 +353,9 @@
 <div class="dashboard">
     <div id="map"></div>
     <div class="analysis-panel" id="analysisPanel">
+        <div class="hub-row">
+            <a class="hub-link" href="index.html">← В хаб</a>
+        </div>
         <div class="panel-toggle" id="panelToggle">▶</div>
         <div class="panel-content">
             <div class="title">
